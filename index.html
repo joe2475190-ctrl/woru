@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STUDY//CORE</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="logo">STUDY//CORE</div>
+  <div id="session-bar" class="hidden">
+    <span id="bar-subject"></span>
+    <span id="bar-time"></span>
+  </div>
+ <section id="home" class="screen active">
+  <h1 id="greeting">Good morning, Joseph</h1>
+
+  <div class="card">
+    <div class="label">TODAY'S TARGET</div>
+    <div class="bar"><div class="fill" id="h-fill" style="width: 0%"></div></div>
+    <p class="small" id="h-today">0m of 2h 0m today</p>
+  </div>
+
+  <div class="card" id="h-continue">
+    <div class="label">CONTINUE STUDYING</div>
+    <h2 id="h-course">No sessions yet</h2>
+    <p class="small" id="h-topic">Start one from the Planner.</p>
+  </div>
+
+  <div class="actions">
+    <button data-go="ai">ASK AI</button>
+    <button data-go="study">STUDY</button>
+    <button data-go="cbt">CBT</button>
+    <button data-go="planner">STUDY PLAN</button>
+  </div>
+
+  <div class="card">
+    <div class="label">STUDY TIME THIS WEEK</div>
+    <div id="h-courses"></div>
+  </div>
+  <div class="card">
+  <div class="label">WEAK TOPICS</div>
+  <div id="h-weak"></div>
+</div>
+</section>
+<section id="ai" class="screen">
+  <h1>AI Tutor</h1>
+  <div class="modes">
+    <button class="mode active" data-mode="general">GENERAL</button>
+    <button class="mode" data-mode="engineering">ENGINEERING</button>
+    <button class="mode" data-mode="autocad">AUTOCAD</button>
+    <button class="mode" data-mode="coding">CODING</button>
+    <button class="mode" disabled>IMAGE · SOON</button>
+  </div>
+  <p id="mode-note" class="small"></p>
+  <div id="messages"></div>
+  <div class="quick">
+    <button data-quick="simpler" disabled>EXPLAIN SIMPLER</button>
+    <button data-quick="hint" disabled>GIVE ME A HINT</button>
+    <button data-quick="quiz" disabled>QUIZ ME</button>
+    <button data-quick="example" disabled>SHOW EXAMPLE</button>
+    <button data-quick="steps" disabled>STEP-BY-STEP</button>
+  </div>
+  <div class="chat-input">
+    <input id="question" type="text" placeholder="Ask anything...">
+    <button id="send">SEND</button>
+  </div>
+</section>
+ <section id="study" class="screen">
+  <h1>Study</h1>
+  <select id="cbt-course"></select>
+  <button id="start-cbt" class="primary">START CBT PRACTICE</button>
+  <div id="course-list"></div>
+  <div id="topic-view" class="hidden">
+    <button id="back" class="back">← BACK</button>
+    <h2 id="course-title"></h2>
+    <div id="topic-list"></div>
+  </div>
+  <div id="quiz" class="hidden">
+    <div class="label" id="quiz-progress"></div>
+    <h2 id="quiz-question"></h2>
+    <div id="quiz-options"></div>
+    <p id="quiz-feedback" class="small"></p>
+    <button id="quiz-next" class="primary hidden">NEXT</button>
+  </div>
+</section>
+<section id="planner" class="screen">
+  <h1>Planner</h1>
+  <div class="tabs">
+    <button id="view-session" class="active">SESSION</button>
+    <button id="view-timetable">TIMETABLE</button>
+  </div>
+
+  <div id="planner-session">
+    <div id="session-setup">
+      <div class="label">START A STUDY SESSION</div>
+      <select id="session-course"></select>
+      <select id="session-topic"></select>
+      <label class="field">Duration (minutes)
+        <input id="session-minutes" type="number" value="45" min="1">
+      </label>
+      <label class="field">Minimum completion (%)
+        <input id="session-min" type="number" value="50" min="1" max="100">
+      </label>
+      <select id="session-mode">
+        <option value="normal">Normal: leave freely</option>
+        <option value="focus">Focus: warnings if you leave</option>
+        <option value="strict">Strict: locked until minimum target</option>
+      </select>
+      <label class="field">Break every (minutes, 0 = no breaks)
+        <input id="session-break-every" type="number" value="50" min="0">
+      </label>
+      <label class="field">Break length (minutes)
+        <input id="session-break-length" type="number" value="10" min="1">
+      </label>
+      <button id="test-alarm" class="back">▶ TEST ALARM</button>
+      <button id="start-session" class="primary">START SESSION</button>
+    </div>
+    <div id="session-live" class="hidden">
+      <div class="label" id="live-phase">STUDY SESSION</div>
+      <h2 id="live-subject"></h2>
+      <p id="live-topic" class="small"></p>
+      <div class="timer" id="live-time">00:00:00</div>
+      <div class="bar"><div class="fill" id="live-fill" style="width: 0%"></div></div>
+      <p class="small" id="live-progress">Progress: 0%</p>
+      <p class="small" id="live-message"></p>
+      <p class="small" id="live-leaves"></p>
+      <button id="end-session" class="primary">END SESSION</button>
+    </div>
+  </div>
+
+  <div id="planner-timetable" class="hidden">
+    <div class="card">
+      <div class="label">TODAY</div>
+      <div id="tt-today"></div>
+    </div>
+    <div class="card">
+      <div class="label">ADD TO TIMETABLE</div>
+      <select id="tt-day"></select>
+      <label class="field">Start time
+        <input id="tt-start" type="time" value="07:00">
+      </label>
+      <label class="field">End time
+        <input id="tt-end" type="time" value="08:00">
+      </label>
+      <select id="tt-course"></select>
+      <select id="tt-topic"></select>
+      <p class="small" id="tt-message"></p>
+      <button id="tt-add" class="primary">ADD</button>
+    </div>
+    <div class="card">
+      <div class="label">THIS WEEK</div>
+      <div id="tt-week"></div>
+    </div>
+  </div>
+</section>
+  <section id="profile" class="screen">
+  <h1>Profile</h1>
+  <div class="card">
+    <div class="label">JOSEPH · 200 LEVEL</div>
+    <h2 id="p-streak">0 DAY STREAK</h2>
+    <div class="week" id="p-week"></div>
+  </div>
+  <div class="card">
+    <div class="label">TOTALS</div>
+    <div class="row"><span>Total study time</span><span id="p-time">0m</span></div>
+    <div class="row"><span>Study sessions</span><span id="p-sessions">0</span></div>
+    <div class="row"><span>Questions answered</span><span id="p-questions">0</span></div>
+    <div class="row"><span>Average quiz score</span><span id="p-avg">–</span></div>
+  </div>
+  <button id="reset-progress" class="back">RESET PROGRESS</button>
+</section>
+
+  <nav>
+    <button data-screen="home" class="active">HOME</button>
+    <button data-screen="ai">AI</button>
+    <button data-screen="study">STUDY</button>
+    <button data-screen="planner">PLANNER</button>
+    <button data-screen="profile">PROFILE</button>
+ 
+  </nav><script src="data.js"></script>
+<script src="questions.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
