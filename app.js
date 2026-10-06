@@ -7,133 +7,11 @@ buttons.forEach(function (button) {
     buttons.forEach(function (b) { b.classList.remove("active"); });
     document.getElementById(button.dataset.screen).classList.add("active");
     button.classList.add("active");
-  });// Your courses and topics. To change anything, edit the names below and save.
-// Pattern for one course:
-//   { id: "short-id", name: "CODE · Title", topics: ["Topic 1", "Topic 2"] }
-// Put a comma after each course except the last one.
-// The topics are a first draft: compare them with your lecturer's course outline and edit.
+  });
 
-const courses = [
-  {
-    id: "get201",
-    name: "GET201 · Applied Electricity I",
-    topics: [
-      "Electric Charge and Electric Field",
-      "Current, Voltage and Resistance",
-      "Ohm's Law",
-      "Resistors in Series and Parallel",
-      "Kirchhoff's Laws",
-      "Power and Electrical Energy",
-      "Network Theorems (Superposition, Thevenin, Norton)",
-      "Capacitors and Inductors",
-      "Magnetism and Electromagnetic Induction",
-      "AC Fundamentals (RMS, Phasors)",
-      "Single-Phase AC Circuits (RLC)",
-      "Power in AC Circuits"
-    ]
-  },
-  {
-    id: "get203",
-    name: "GET203 · Engineering Graphics & Solid Modelling II",
-    topics: [
-      "Orthographic Projection",
-      "Isometric and Oblique Drawing",
-      "Sectional Views",
-      "Auxiliary Views",
-      "Dimensioning and Tolerancing",
-      "AutoCAD Basics (Commands, Layers, Object Snaps)",
-      "2D Drawing and Editing in AutoCAD",
-      "3D Solid Modelling (Extrude, Revolve)",
-      "Assembly Drawings",
-      "Intersection and Development of Surfaces"
-    ]
-  },
-  {
-    id: "get205",
-    name: "GET205 · Fundamental Fluid Mechanics",
-    topics: [
-      "Fluid Properties (Density, Viscosity, Surface Tension)",
-      "Fluid Statics and Pressure",
-      "Manometers",
-      "Forces on Submerged Surfaces",
-      "Buoyancy and Stability",
-      "Fluid Kinematics",
-      "Continuity Equation",
-      "Bernoulli's Equation",
-      "Momentum Equation",
-      "Flow in Pipes (Laminar, Turbulent, Losses)",
-      "Dimensional Analysis"
-    ]
-  },
-  {
-    id: "get207",
-    name: "GET207 · Applied Mechanics",
-    topics: [
-      "Force Systems and Resultants",
-      "Equilibrium of Particles",
-      "Free Body Diagrams",
-      "Equilibrium of Rigid Bodies",
-      "Friction",
-      "Centroids and Moments of Inertia",
-      "Trusses and Frames",
-      "Kinematics of Particles",
-      "Kinetics (Newton's Laws)",
-      "Work, Energy and Power",
-      "Impulse and Momentum"
-    ]
-  },
-  {
-    id: "get209",
-    name: "GET209 · Engineering Mathematics I",
-    topics: [
-      "Functions and Graphs",
-      "Limits and Continuity",
-      "Differentiation",
-      "Applications of Differentiation",
-      "Integration",
-      "Applications of Integration",
-      "Complex Numbers",
-      "Matrices and Determinants",
-      "Vectors",
-      "Sequences and Series",
-      "Permutations and Combinations",
-      "First-Order Differential Equations"
-    ]
-  },
-  {
-    id: "get211",
-    name: "GET211 · Computing & Software Engineering",
-    topics: [
-      "Introduction to Computing and Computer Systems",
-      "Algorithms and Flowcharts",
-      "Programming Fundamentals (Variables, Data Types)",
-      "Control Structures (Decisions and Loops)",
-      "Functions",
-      "Lists and Arrays",
-      "Debugging and Testing",
-      "Software Development Life Cycle",
-      "Software Design and Documentation",
-      "Version Control Basics"
-    ]
-  },
-  {
-    id: "ent211",
-    name: "ENT211 · Entrepreneurship and Innovation",
-    topics: [
-      "Meaning and Types of Entrepreneurship",
-      "Opportunity Identification",
-      "Business Idea Generation",
-      "Market Research",
-      "Writing a Business Plan",
-      "Financing a Business",
-      "Business Registration and Law",
-      "Marketing Basics",
-      "Creativity and Innovation",
-      "Entrepreneurial Ethics"
-    ]
-  }
-];
+  button.classList.add("active");
 });
+
 const hour = new Date().getHours();
 let greeting = "Good evening";
 if (hour < 12) {
@@ -452,12 +330,16 @@ function shuffle(list) {
 
 function startQuiz() {
   const chosen = cbtCourse.value;
-const pool = chosen === "all" ? questions : questions.filter(function (q) { return q.course === chosen; });
-if (pool.length === 0) {
-  alert("No questions for this course yet.");
-  return;
+  const pool = chosen === "all" ? questions : questions.filter(function (q) { return q.course === chosen; });
+  if (pool.length === 0) {
+    alert("No questions for this course yet.");
+    return;
+  }
+  beginQuiz(pool);
 }
-quizQuestions = shuffle(pool);
+
+function beginQuiz(pool) {
+  quizQuestions = shuffle(pool);
   quizIndex = 0;
   quizScore = 0;
   courseList.classList.add("hidden");
@@ -850,6 +732,7 @@ function removeEntry(id) {
   timetable = timetable.filter(function (e) { return e.id !== id; });
   saveTimetable();
   renderTimetable();
+  renderNext();
 }
 
 function renderTimetable() {
@@ -930,6 +813,7 @@ function addTimetableEntry() {
   saveTimetable();
   ttMessage.textContent = "Added.";
   renderTimetable();
+  renderNext();
 }
 
 function fillTimetableTopics() {
@@ -972,6 +856,19 @@ setInterval(renderTimetable, 60000);
 // ===== PROGRESS AND PROFILE =====
 const progressKey = "studycore-progress";
 const dailyTargetMinutes = 120;
+let nextSlot = null;
+let nextMinutes = 45;
+
+const courseModes = {
+  get201: "engineering",
+  get203: "autocad",
+  get205: "engineering",
+  get207: "engineering",
+  get209: "engineering",
+  get211: "coding",
+  ent211: "general"
+};
+
 const dayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function loadProgress() {
@@ -1093,13 +990,15 @@ function renderWeak() {
   if (!box) return;
   const stats = {};
   progress.answers.forEach(function (a) {
-    if (!stats[a.topic]) stats[a.topic] = { tries: 0, right: 0 };
-    stats[a.topic].tries++;
-    if (a.correct) stats[a.topic].right++;
+    const key = a.course + "|" + a.topic;
+    if (!stats[key]) stats[key] = { course: a.course, topic: a.topic, tries: 0, right: 0 };
+    stats[key].tries++;
+    if (a.correct) stats[key].right++;
   });
-  function accuracy(t) { return stats[t].right / stats[t].tries; }
+  function accuracy(t) { return t.right / t.tries; }
   const weak = Object.keys(stats)
-    .filter(function (t) { return stats[t].tries >= 2 && accuracy(t) < 0.7; })
+    .map(function (k) { return stats[k]; })
+    .filter(function (t) { return t.tries >= 2 && accuracy(t) < 0.7; })
     .sort(function (a, b) { return accuracy(a) - accuracy(b); })
     .slice(0, 5);
   box.innerHTML = "";
@@ -1111,14 +1010,35 @@ function renderWeak() {
     return;
   }
   weak.forEach(function (t) {
+    const course = courses.find(function (c) { return c.id === t.course; });
+    const code = course ? course.name.split(" · ")[0] : t.course;
+
     const div = document.createElement("div");
-    div.className = "item tt";
-    const name = document.createElement("span");
-    name.textContent = t;
-    const score = document.createElement("span");
-    score.textContent = Math.round(accuracy(t) * 100) + "%";
-    div.appendChild(name);
-    div.appendChild(score);
+    div.className = "item tt weak";
+
+    const info = document.createElement("div");
+    info.className = "weak-info";
+    const name = document.createElement("div");
+    name.textContent = t.topic;
+    const meta = document.createElement("div");
+    meta.className = "small";
+    meta.textContent = code + " · " + Math.round(accuracy(t) * 100) + "% correct (" + t.right + "/" + t.tries + ")";
+    info.appendChild(name);
+    info.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "weak-actions";
+    const practise = document.createElement("button");
+    practise.textContent = "PRACTISE";
+    practise.addEventListener("click", function () { practiseTopic(t.course, t.topic); });
+    const explain = document.createElement("button");
+    explain.textContent = "EXPLAIN";
+    explain.addEventListener("click", function () { explainTopic(t.course, t.topic); });
+    actions.appendChild(practise);
+    actions.appendChild(explain);
+
+    div.appendChild(info);
+    div.appendChild(actions);
     box.appendChild(div);
   });
 }
@@ -1151,6 +1071,12 @@ function renderHome()
     if (s.date === today) todayMin += s.minutes;
     if (weekKeys[s.date]) byCourse[s.courseName] = (byCourse[s.courseName] || 0) + s.minutes;
   });
+
+  const streak = calcStreak(activeDays());
+  homeText("h-streak", streak > 0
+    ? "🔥 " + streak + " day streak"
+    : "Study for a minute or finish a quiz to start a streak.");
+  renderNext();
 
   fill.style.width = Math.min(100, Math.round((todayMin / dailyTargetMinutes) * 100)) + "%";
   homeText("h-today", formatMinutes(todayMin) + " of " + formatMinutes(dailyTargetMinutes) + " today");
@@ -1218,4 +1144,96 @@ document.querySelectorAll("[data-go]").forEach(function (b) {
 });
 
 renderHome();
+setInterval(renderHome, 60000);
+
+// ===== HOME: UP NEXT, weak-topic actions =====
+function renderNext() {
+  const title = document.getElementById("h-next-title");
+  if (!title) return;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const todays = sortByStart(timetable.filter(function (e) { return e.day === now.getDay(); }));
+
+  let current = null;
+  let upcoming = null;
+  todays.forEach(function (e) {
+    const start = timeToMinutes(e.start);
+    const end = timeToMinutes(e.end);
+    if (nowMin >= start && nowMin < end) {
+      if (!current) current = e;
+    } else if (start > nowMin && !upcoming) {
+      upcoming = e;
+    }
+  });
+
+  nextSlot = current || upcoming;
+  const btn = document.getElementById("h-next-btn");
+  if (!nextSlot) {
+    homeText("h-next-label", "UP NEXT");
+    title.textContent = "Nothing else on today's timetable";
+    homeText("h-next-sub", "Add classes or study slots to plan your day.");
+    btn.textContent = "OPEN TIMETABLE";
+    return;
+  }
+
+  const course = courses.find(function (c) { return c.id === nextSlot.courseId; });
+  homeText("h-next-label", current ? "NOW" : "UP NEXT · " + nextSlot.start);
+  title.textContent = course ? course.name : nextSlot.courseName;
+  homeText("h-next-sub", nextSlot.topic + " · " + nextSlot.start + " – " + nextSlot.end);
+  nextMinutes = current
+    ? Math.max(1, timeToMinutes(current.end) - nowMin)
+    : Math.max(1, timeToMinutes(nextSlot.end) - timeToMinutes(nextSlot.start));
+  btn.textContent = sessionTimer !== null ? "VIEW SESSION" : "SET UP SESSION";
+}
+
+function prepareSession(courseId, topic, minutes) {
+  if (courses.some(function (c) { return c.id === courseId; })) {
+    sessionCourse.value = courseId;
+    fillSessionTopics();
+    const hasTopic = Array.prototype.some.call(sessionTopic.options, function (o) { return o.value === topic; });
+    if (hasTopic) sessionTopic.value = topic;
+  }
+  document.getElementById("session-minutes").value = Math.max(1, Math.round(minutes));
+  showScreen("planner");
+  showPlannerView("session");
+}
+
+const nextButton = document.getElementById("h-next-btn");
+if (nextButton) {
+  nextButton.addEventListener("click", function () {
+    if (sessionTimer !== null) {
+      showScreen("planner");
+      return;
+    }
+    if (!nextSlot) {
+      showScreen("planner");
+      showPlannerView("timetable");
+      return;
+    }
+    prepareSession(nextSlot.courseId, nextSlot.topic, nextMinutes);
+  });
+}
+
+function practiseTopic(courseId, topic) {
+  const pool = questions.filter(function (q) { return q.course === courseId && q.topic === topic; });
+  if (pool.length === 0) {
+    alert("No saved questions for this topic yet.");
+    return;
+  }
+  showScreen("study");
+  beginQuiz(pool);
+}
+
+function explainTopic(courseId, topic) {
+  const course = courses.find(function (c) { return c.id === courseId; });
+  const courseName = course ? course.name : courseId;
+  setMode(courseModes[courseId] || "general");
+  showScreen("ai");
+  if (aiBusy) return;
+  addMessage("Explain " + topic + " (" + courseName + ")", "user");
+  simplerLevel = 1;
+  askAI("I am finding this topic hard in my CBT practice: \"" + topic + "\" from " + courseName +
+    ". Explain it in simple words, then ask me one short question to check that I understood.");
+}
+
 setInterval(renderHome, 60000);

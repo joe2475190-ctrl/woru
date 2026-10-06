@@ -164,3 +164,151 @@ nav button:nth-child(5).active { color: var(--violet); }
 .day.done { border-color: var(--k); color: var(--k); background: rgba(255,255,255,.04); }
 .week .day:nth-child(1) { --k: var(--amber); } .week .day:nth-child(2) { --k: var(--sky); } .week .day:nth-child(3) { --k: var(--teal); }
 .week .day:nth-child(4) { --k: var(--orange); } .week .day:nth-child(5) { --k: var(--violet); } .week .day:nth-child(6) { --k: var(--green); } .week .day:nth-child(7) { --k: var(--rose); }
+
+/* ---------- Home: weak topics with PRACTISE / EXPLAIN ---------- */
+.item.weak { cursor: default; align-items: center; }
+.weak-info { min-width: 0; }
+.weak-actions { display: flex; gap: 6px; flex: none; }
+.item.weak .weak-actions button { background: none; border: 1px solid var(--k); color: var(--k); border-radius: 8px; padding: 6px 10px; font-size: 11px; letter-spacing: 1px; cursor: pointer; }
+.item.weak .weak-actions button:hover { background: var(--k); color: #15171a; }
+.item.weak .weak-actions button:nth-child(1) { --k: var(--rose); }
+.item.weak .weak-actions button:nth-child(2) { --k: var(--sky); }
+/* ===== POLISH ===== */
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: contain; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+nav { padding-bottom: env(safe-area-inset-bottom); }
+.chat-input { bottom: calc(54px + env(safe-area-inset-bottom)); }
+button, .item { -webkit-tap-highlight-color: transparent; }
+::selection { background: #34d399; color: #15171a; }
+:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+
+/* Bigger tap targets */
+.item.tt button { padding: 10px 14px; font-size: 18px; }
+.item.weak .weak-actions button { padding: 10px 12px; }
+.retry, .copy { padding: 8px 12px; }
+
+/* Smooth movement */
+.screen.active { animation: screenIn .28s ease; }
+.msg { animation: screenIn .2s ease; }
+@keyframes screenIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+button, .item, .card, .mode, .day { transition: border-color .15s, background .15s, color .15s, transform .1s; }
+button:active:not(:disabled), .item:active { transform: scale(.97); }
+.fill { transition: width .5s ease; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+/* ===== THEME LAYER: paste at the very bottom of style.css (after the other layers) ===== */
+
+/* Colours. --h is the picture's hue, set automatically by theme.js */
+:root {
+  --h: 160;
+  --scrim: hsl(var(--h) 16% 9% / .82); --card: hsl(var(--h) 12% 14% / .72); --card2: hsl(var(--h) 12% 17% / .9);
+  --line: rgba(255,255,255,.13); --text: #efeee9; --mute: #a9a8a2;
+  --accent: hsl(var(--h) 62% 58%); --onaccent: #10130f; --bg: hsl(var(--h) 16% 9%);
+}
+html[data-theme="light"] {
+  --scrim: hsl(var(--h) 32% 96% / .86); --card: rgba(255,255,255,.74); --card2: rgba(255,255,255,.94);
+  --line: rgba(0,0,0,.11); --text: #2b2a26; --mute: #6d6b63;
+  --accent: hsl(var(--h) 55% 36%); --onaccent: #fff; --bg: hsl(var(--h) 32% 96%);
+  --amber: #b7791f; --sky: #0e7490; --teal: #0f766e; --orange: #c2410c; --violet: #6d28d9; --rose: #be123c;
+}
+html[data-theme] { --green: var(--accent); --teal: var(--accent); }
+
+/* Picture background on every screen, with a soft veil so text stays readable */
+html { background: var(--bg); }
+body { background: none !important; color: var(--text); padding: 20px 16px calc(84px + env(safe-area-inset-bottom)); }
+body::before { content: ""; position: fixed; inset: 0; z-index: -2; background: url(bg.jpg) center / cover no-repeat; }
+body::after { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--scrim); }
+.screen { max-width: 720px; margin: 0 auto; }
+
+/* Calm, chat-style type */
+h1, h2, #greeting { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.01em; }
+h1 { font-size: 28px; margin: 14px 0 6px; }
+h2 { font-size: 19px; }
+.logo { border: 0; padding: 0; margin-left: 2px; color: var(--text); font: 500 15px Georgia, serif; letter-spacing: .5px; }
+.logo::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); margin-right: 8px; }
+.small, .label, .field { color: var(--mute); }
+.label { font-size: 11px; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+/* Softer, smaller boxes */
+.screen .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-top: 12px; max-width: none; backdrop-filter: blur(10px); }
+.item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--k, var(--line)); border-radius: 14px; padding: 12px 14px; margin-top: 8px; max-width: none; font-size: 14.5px; }
+.item:hover { border-color: var(--accent); border-left-color: var(--k, var(--accent)); }
+.item.correct { border-color: #2fa56b; background: rgba(47,165,107,.16); }
+.item.wrong { border-color: #d9534f; background: rgba(217,83,79,.14); }
+.item.now { border-color: var(--accent); background: var(--card2); }
+select, .field input { background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 12px 14px; max-width: none; margin-top: 10px; }
+.bar { background: var(--line); }
+.fill { background: var(--accent); }
+.primary { background: var(--accent); color: var(--onaccent); border-radius: 12px; padding: 12px 18px; font-size: 13px; letter-spacing: .3px; }
+.back, .retry, .copy { color: var(--accent); border-color: var(--accent); }
+.day { border-color: var(--line); color: var(--mute); }
+
+/* Chips for modes, quick buttons and planner tabs */
+.mode, .quick button:nth-child(n), .tabs button { background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: 12px; letter-spacing: .2px; }
+.modes .mode.active:nth-child(n), .tabs button.active, #view-session.active, #view-timetable.active { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }
+.actions { max-width: none; gap: 8px; }
+.actions button { background: var(--card); border-radius: 14px; padding: 12px; font-size: 12px; }
+
+/* Bottom bar */
+nav { background: var(--card2); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+nav button { padding: 10px 0; font-size: 11px; color: var(--mute); }
+nav button.active, nav button:nth-child(n).active { color: var(--accent); box-shadow: none; background: none; }
+
+/* Chat: AI replies are plain text, yours sit in a soft bubble */
+#messages { max-width: none; margin-top: 12px; }
+.msg { max-width: 100%; line-height: 1.55; font-size: 15px; }
+.msg.ai { background: none; border: 0; padding: 4px 0; }
+.msg.user { background: var(--card2); border: 1px solid var(--line); border-radius: 18px; padding: 10px 14px; max-width: 85%; margin-left: auto; }
+.msg.error { border: 1px solid #d9534f; border-radius: 12px; padding: 10px 12px; }
+.msg strong { color: var(--text); }
+.code { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; }
+.code-head { background: none; color: var(--mute); }
+.code pre { color: var(--text); }
+
+/* Message box: small, grows as you type, like normal chatbots */
+.chat-input { position: sticky; bottom: calc(56px + env(safe-area-inset-bottom)); display: flex; align-items: flex-end; gap: 6px; max-width: none; margin-top: 12px; padding: 6px 6px 6px 16px; background: var(--card2); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 6px 24px rgba(0,0,0,.14); backdrop-filter: blur(12px); }
+.chat-input:focus-within { border-color: var(--accent); }
+.chat-input textarea { flex: 1; min-width: 0; background: none; border: 0; outline: 0; resize: none; color: var(--text); font: inherit; font-size: 16px; line-height: 1.4; padding: 8px 0; margin: 0; max-height: 160px; overflow-y: auto; }
+.chat-input #send { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50%; background: var(--accent); color: var(--onaccent); font-size: 0; }
+.chat-input #send::after { content: "↑"; font-size: 20px; font-weight: 700; }
+
+#session-bar { background: var(--card2); border-color: var(--accent); max-width: none; border-radius: 14px; }
+.timer { font-size: 44px; }
+
+/* Light / dark switch */
+#theme-toggle { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card2); color: var(--text); font-size: 16px; cursor: pointer; }
+
+/* Smaller boxes on phones */
+@media (max-width: 600px) {
+  h1 { font-size: 25px; }
+  .screen .card { padding: 12px 14px; }
+  .item { padding: 10px 12px; font-size: 14px; }
+  .timer { font-size: 38px; }
+  .primary { padding: 11px 16px; }
+}
+/* ===== CHAT LAYOUT: paste at the very bottom of style.css (after theme.css) ===== */
+
+/* Empty chat: friendly prompt in the open space */
+#messages:empty::before { content: "What shall we study today?"; display: block; text-align: center; font: 500 24px Georgia, "Times New Roman", serif; color: var(--mute); margin: 16vh 0 0; }
+#ai { padding-bottom: 110px; }
+.msg { scroll-margin-bottom: 150px; }
+
+/* Message box pinned to the bottom, just above the tab bar */
+.chat-input { position: fixed; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 720px; bottom: calc(56px + env(safe-area-inset-bottom)); margin: 0; padding: 6px; z-index: 20; }
+.chat-input textarea { padding: 8px 4px; }
+#plus-btn { flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 22px; line-height: 1; cursor: pointer; }
+.chat-input:has(.quick.open) #plus-btn { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }
+
+/* Title row with the mode picker */
+.ai-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.ai-head h1 { margin: 0; }
+#mode-pick { background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+#mode-pick::after { content: "  ▾"; color: var(--mute); }
+
+/* Both menus: pop-up lists */
+.modes, .chat-input .quick { display: none; position: absolute; z-index: 40; flex-direction: column; gap: 2px; width: 235px; max-width: none; padding: 6px; margin: 0; overflow: visible; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(14px); }
+.modes { top: 100%; right: 0; margin-top: 8px; }
+.chat-input .quick { left: 0; bottom: calc(100% + 10px); }
+.modes.open, .chat-input .quick.open { display: flex; }
+.modes .mode:nth-child(n), .chat-input .quick button:nth-child(n) { background: none; border: 0; border-radius: 10px; text-align: left; padding: 10px 12px; font-size: 14px; letter-spacing: 0; color: var(--text); white-space: normal; }
+.modes .mode:hover:not(:disabled), .chat-input .quick button:hover:not(:disabled) { background: var(--card); }
+.modes .mode.active:nth-child(n) { background: var(--accent); color: var(--onaccent); }

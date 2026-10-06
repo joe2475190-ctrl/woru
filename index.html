@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head<meta name="theme-color" content="#15171a">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>STUDY//CORE</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -14,11 +14,19 @@
   </div>
  <section id="home" class="screen active">
   <h1 id="greeting">Good morning, Joseph</h1>
+  <p class="small" id="h-streak"></p>
 
   <div class="card">
     <div class="label">TODAY'S TARGET</div>
     <div class="bar"><div class="fill" id="h-fill" style="width: 0%"></div></div>
     <p class="small" id="h-today">0m of 2h 0m today</p>
+  </div>
+
+  <div class="card" id="h-next">
+    <div class="label" id="h-next-label">UP NEXT</div>
+    <h2 id="h-next-title">Nothing scheduled</h2>
+    <p class="small" id="h-next-sub"></p>
+    <button class="primary" id="h-next-btn">OPEN TIMETABLE</button>
   </div>
 
   <div class="card" id="h-continue">
@@ -62,7 +70,7 @@
     <button data-quick="steps" disabled>STEP-BY-STEP</button>
   </div>
   <div class="chat-input">
-    <input id="question" type="text" placeholder="Ask anything...">
+       <textarea id="question" rows="1" placeholder="Message your tutor"></textarea>
     <button id="send">SEND</button>
   </div>
 </section>
@@ -178,8 +186,9 @@
     <button data-screen="planner">PLANNER</button>
     <button data-screen="profile">PROFILE</button>
  
-  </nav><script src="data.js"></script>
+  <script src="data.js"></script>
 <script src="questions.js"></script>
 <script src="app.js"></script>
+<script src="theme.js"></script>
 </body>
 </html>
