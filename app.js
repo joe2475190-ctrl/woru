@@ -7,11 +7,133 @@ buttons.forEach(function (button) {
     buttons.forEach(function (b) { b.classList.remove("active"); });
     document.getElementById(button.dataset.screen).classList.add("active");
     button.classList.add("active");
-  });
+  });// Your courses and topics. To change anything, edit the names below and save.
+// Pattern for one course:
+//   { id: "short-id", name: "CODE · Title", topics: ["Topic 1", "Topic 2"] }
+// Put a comma after each course except the last one.
+// The topics are a first draft: compare them with your lecturer's course outline and edit.
 
-  button.classList.add("active");
+const courses = [
+  {
+    id: "get201",
+    name: "GET201 · Applied Electricity I",
+    topics: [
+      "Electric Charge and Electric Field",
+      "Current, Voltage and Resistance",
+      "Ohm's Law",
+      "Resistors in Series and Parallel",
+      "Kirchhoff's Laws",
+      "Power and Electrical Energy",
+      "Network Theorems (Superposition, Thevenin, Norton)",
+      "Capacitors and Inductors",
+      "Magnetism and Electromagnetic Induction",
+      "AC Fundamentals (RMS, Phasors)",
+      "Single-Phase AC Circuits (RLC)",
+      "Power in AC Circuits"
+    ]
+  },
+  {
+    id: "get203",
+    name: "GET203 · Engineering Graphics & Solid Modelling II",
+    topics: [
+      "Orthographic Projection",
+      "Isometric and Oblique Drawing",
+      "Sectional Views",
+      "Auxiliary Views",
+      "Dimensioning and Tolerancing",
+      "AutoCAD Basics (Commands, Layers, Object Snaps)",
+      "2D Drawing and Editing in AutoCAD",
+      "3D Solid Modelling (Extrude, Revolve)",
+      "Assembly Drawings",
+      "Intersection and Development of Surfaces"
+    ]
+  },
+  {
+    id: "get205",
+    name: "GET205 · Fundamental Fluid Mechanics",
+    topics: [
+      "Fluid Properties (Density, Viscosity, Surface Tension)",
+      "Fluid Statics and Pressure",
+      "Manometers",
+      "Forces on Submerged Surfaces",
+      "Buoyancy and Stability",
+      "Fluid Kinematics",
+      "Continuity Equation",
+      "Bernoulli's Equation",
+      "Momentum Equation",
+      "Flow in Pipes (Laminar, Turbulent, Losses)",
+      "Dimensional Analysis"
+    ]
+  },
+  {
+    id: "get207",
+    name: "GET207 · Applied Mechanics",
+    topics: [
+      "Force Systems and Resultants",
+      "Equilibrium of Particles",
+      "Free Body Diagrams",
+      "Equilibrium of Rigid Bodies",
+      "Friction",
+      "Centroids and Moments of Inertia",
+      "Trusses and Frames",
+      "Kinematics of Particles",
+      "Kinetics (Newton's Laws)",
+      "Work, Energy and Power",
+      "Impulse and Momentum"
+    ]
+  },
+  {
+    id: "get209",
+    name: "GET209 · Engineering Mathematics I",
+    topics: [
+      "Functions and Graphs",
+      "Limits and Continuity",
+      "Differentiation",
+      "Applications of Differentiation",
+      "Integration",
+      "Applications of Integration",
+      "Complex Numbers",
+      "Matrices and Determinants",
+      "Vectors",
+      "Sequences and Series",
+      "Permutations and Combinations",
+      "First-Order Differential Equations"
+    ]
+  },
+  {
+    id: "get211",
+    name: "GET211 · Computing & Software Engineering",
+    topics: [
+      "Introduction to Computing and Computer Systems",
+      "Algorithms and Flowcharts",
+      "Programming Fundamentals (Variables, Data Types)",
+      "Control Structures (Decisions and Loops)",
+      "Functions",
+      "Lists and Arrays",
+      "Debugging and Testing",
+      "Software Development Life Cycle",
+      "Software Design and Documentation",
+      "Version Control Basics"
+    ]
+  },
+  {
+    id: "ent211",
+    name: "ENT211 · Entrepreneurship and Innovation",
+    topics: [
+      "Meaning and Types of Entrepreneurship",
+      "Opportunity Identification",
+      "Business Idea Generation",
+      "Market Research",
+      "Writing a Business Plan",
+      "Financing a Business",
+      "Business Registration and Law",
+      "Marketing Basics",
+      "Creativity and Innovation",
+      "Entrepreneurial Ethics"
+    ]
+  }
+];
 });
-
 const hour = new Date().getHours();
 let greeting = "Good evening";
 if (hour < 12) {
@@ -51,6 +173,19 @@ modeButtons.forEach(function (b) {
 });
 setMode("general");
 
+function renderMath(el) {
+  if (typeof renderMathInElement !== "function") return;
+  try {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      throwOnError: false
+    });
+  } catch (e) {}
+}
 function addMessage(text, who) {
   const div = document.createElement("div");
   div.className = "msg " + who;
@@ -115,6 +250,7 @@ function renderReply(box, reply) {
       const p = document.createElement("div");
       p.textContent = text;
       box.appendChild(p);
+      renderMath(p);
       return;
     }
 
@@ -162,7 +298,9 @@ async function askAI(text) {
   aiBusy = true;
   sendButton.disabled = true;
   updateQuick();
-  const thinking = addMessage("Thinking...", "ai");
+    const thinking = addMessage("", "ai");
+  thinking.classList.add("thinking");
+  thinking.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span class="think-label">THINKING</span>';
   const controller = new AbortController();
   const timer = setTimeout(function () { controller.abort(); }, 30000);
 
@@ -252,10 +390,12 @@ sendButton.addEventListener("click", sendQuestion);
 questionInput.addEventListener("keydown", function (e) {
   if (e.key === "Enter") sendQuestion();
 });
+const studyHome = document.getElementById("study-home");
 const courseList = document.getElementById("course-list");
 const topicView = document.getElementById("topic-view");
 const courseTitle = document.getElementById("course-title");
 const topicList = document.getElementById("topic-list");
+let studyCourse = null;
 
 function showCourses() {
   courseList.innerHTML = "";
@@ -268,54 +408,138 @@ function showCourses() {
   });
 }
 
+const readerEl = document.getElementById("reader");
+let studyView = "home";
+
+function setStudyView(name) {
+  studyView = name;
+  studyHome.classList.toggle("hidden", name !== "home");
+  topicView.classList.toggle("hidden", name !== "topics");
+  readerEl.classList.toggle("hidden", name !== "reader");
+  cbtEl.classList.toggle("hidden", name !== "cbt");
+}
+
 function showTopics(course) {
-  courseList.classList.add("hidden");
-  topicView.classList.remove("hidden");
+  if (cbt.active) {
+    if (!cbt.submitted) return;
+    closeCbt();
+  }
+  flushNotes();
+  studyCourse = course;
+  setStudyView("topics");
   courseTitle.textContent = course.name;
   topicList.innerHTML = "";
   course.topics.forEach(function (topic) {
+    const live = sessionTimer !== null && sessionCourseObj !== null && sessionCourseObj.id === course.id && sessionTopic.value === topic;
+    const key = topicKey(course.id, topic);
+    const saved = [];
+    if (lessons[key]) saved.push("LESSON");
+    if (notesStore[key] && notesStore[key].trim()) saved.push("NOTES");
+
     const div = document.createElement("div");
-    div.className = "item";
-    div.textContent = topic;
+    div.className = "item topic" + (live ? " now" : "");
+    const info = document.createElement("div");
+    info.className = "name";
+    const name = document.createElement("span");
+    name.textContent = live ? topic + "  ·  studying now" : topic;
+    info.appendChild(name);
+    if (saved.length > 0) {
+      const tag = document.createElement("span");
+      tag.className = "rd-tag";
+      tag.textContent = saved.join(" · ") + " SAVED";
+      info.appendChild(tag);
+    }
+    const quizButton = document.createElement("button");
+    quizButton.className = "mini";
+    quizButton.textContent = "QUIZ";
+    quizButton.addEventListener("click", function (e) {
+      e.stopPropagation();
+      beginGeneratedQuiz({ courseId: course.id, topic: topic });
+    });
+    div.addEventListener("click", function () { openReading(course, topic); });
+    div.appendChild(info);
+    div.appendChild(quizButton);
     topicList.appendChild(div);
   });
 }
 
 document.getElementById("back").addEventListener("click", function () {
-  topicView.classList.add("hidden");
-  courseList.classList.remove("hidden");
+  studyCourse = null;
+  setStudyView("home");
 });
 
 showCourses();
-const startCbt = document.getElementById("start-cbt");
-const quiz = document.getElementById("quiz");
-const quizProgress = document.getElementById("quiz-progress");
-const quizQuestion = document.getElementById("quiz-question");
-const quizOptions = document.getElementById("quiz-options");
-const quizFeedback = document.getElementById("quiz-feedback");
-const quizNext = document.getElementById("quiz-next");
+// ===== CBT: exam-style quiz =====
+// Questions the AI made earlier are kept on this phone, so you can still practise them offline.
+const aiBankKey = "studycore-aibank";
 
-let quizQuestions = [];
-let quizIndex = 0;
-let quizScore = 0;
-let answered = false;
-const cbtCourse = document.getElementById("cbt-course");
-
-function fillCbtCourses() {
-  cbtCourse.innerHTML = "";
-  const all = document.createElement("option");
-  all.value = "all";
-  all.textContent = "All courses (" + questions.length + ")";
-  cbtCourse.appendChild(all);
-  courses.forEach(function (course) {
-    const count = questions.filter(function (q) { return q.course === course.id; }).length;
-    const option = document.createElement("option");
-    option.value = course.id;
-    option.textContent = course.name + " (" + count + ")";
-    cbtCourse.appendChild(option);
-  });
+function validQuestion(q) {
+  return !!q && typeof q.question === "string" && q.question.length > 0 &&
+    Array.isArray(q.options) && q.options.length === 4 &&
+    q.options.every(function (o) { return typeof o === "string" && o.length > 0; }) &&
+    Number.isInteger(q.answer) && q.answer >= 0 && q.answer <= 3;
 }
-fillCbtCourses();
+
+function loadAiBank() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(aiBankKey));
+    return Array.isArray(saved) ? saved.filter(validQuestion) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+let aiBank = loadAiBank();
+
+function saveAiBank() {
+  try { localStorage.setItem(aiBankKey, JSON.stringify(aiBank)); } catch (e) {}
+}
+
+function savedQuestions() {
+  return questions.concat(aiBank);
+}
+
+const letters = ["A", "B", "C", "D"];
+const cbtEl = document.getElementById("cbt");
+const cbtExam = document.getElementById("cbt-exam");
+const cbtResult = document.getElementById("cbt-result");
+const cbtTitle = document.getElementById("cbt-title");
+const cbtTimer = document.getElementById("cbt-timer");
+const cbtCount = document.getElementById("cbt-count");
+const cbtMore = document.getElementById("cbt-more");
+const cbtNote = document.getElementById("cbt-note");
+const cbtResume = document.getElementById("cbt-resume");
+const cbtQuestion = document.getElementById("cbt-question");
+const cbtOptions = document.getElementById("cbt-options");
+const cbtPalette = document.getElementById("cbt-palette");
+const cbtPrev = document.getElementById("cbt-prev");
+const cbtNext = document.getElementById("cbt-next");
+const cbtFlag = document.getElementById("cbt-flag");
+
+const cbt = {
+  active: false,
+  submitted: false,
+  qs: [],
+  picked: [],
+  flagged: [],
+  current: 0,
+  startedAt: 0,
+  endsAt: 0,
+  usedMs: 0,
+  loading: false,
+  pending: [],
+  note: "",
+  warn: "",
+  times: [],
+  shownAt: 0,
+  returnTo: "",
+  studyTopic: null,
+  ctx: null,
+  timerId: null,
+  review: "wrong"
+};
+let genToken = 0;
+let genBusy = false;
 
 function shuffle(list) {
   const copy = list.slice();
@@ -328,94 +552,443 @@ function shuffle(list) {
   return copy;
 }
 
-function startQuiz() {
-  const chosen = cbtCourse.value;
-  const pool = chosen === "all" ? questions : questions.filter(function (q) { return q.course === chosen; });
-  if (pool.length === 0) {
-    alert("No questions for this course yet.");
-    return;
-  }
-  beginQuiz(pool);
+function courseCode(course) {
+  return course.name.split(" · ")[0];
 }
 
-function beginQuiz(pool) {
-  quizQuestions = shuffle(pool);
-  quizIndex = 0;
-  quizScore = 0;
-  courseList.classList.add("hidden");
-  topicView.classList.add("hidden");
-  startCbt.classList.add("hidden");
-  cbtCourse.classList.add("hidden");
-  quiz.classList.remove("hidden");
-  showQuestion();
+function clockText(ms) {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  return (h > 0 ? h + ":" + pad(m) : pad(m)) + ":" + pad(sec);
 }
 
-function showQuestion() {
-  const q = quizQuestions[quizIndex];
-  answered = false;
-  quizProgress.textContent = "QUESTION " + (quizIndex + 1) + " OF " + quizQuestions.length;
-  quizQuestion.textContent = q.question;
-  quizFeedback.textContent = "";
-  quizNext.classList.add("hidden");
-  quizOptions.innerHTML = "";
-  q.options.forEach(function (option, i) {
-    const div = document.createElement("div");
-    div.className = "item";
-    div.textContent = option;
-    div.addEventListener("click", function () { chooseOption(i, div); });
-    quizOptions.appendChild(div);
+function stopCbtTimer() {
+  if (cbt.timerId !== null) clearInterval(cbt.timerId);
+  cbt.timerId = null;
+}
+
+function startCbt(ctx, list, opts) {
+  stopCbtTimer();
+  cbt.active = true;
+  cbt.submitted = false;
+  cbt.ctx = ctx;
+  cbt.qs = list.slice();
+  cbt.picked = list.map(function () { return -1; });
+  cbt.flagged = list.map(function () { return false; });
+  cbt.times = list.map(function () { return 0; });
+  cbt.shownAt = Date.now();
+  cbt.returnTo = studyView;
+  cbt.current = 0;
+  cbt.loading = false;
+  cbt.pending = [];
+  cbt.warn = "";
+  cbt.note = (opts && opts.note) || "";
+  cbt.startedAt = Date.now();
+  cbt.endsAt = cbt.startedAt + list.length * 60000;
+  setStudyView("cbt");
+  cbtExam.classList.remove("hidden");
+  cbtResult.classList.add("hidden");
+  document.body.classList.add("in-cbt");
+  cbt.timerId = setInterval(tickCbt, 1000);
+  renderCbt();
+  tickCbt();
+  window.scrollTo(0, 0);
+}
+
+function renderCbtHeader() {
+  cbtTitle.textContent = cbt.ctx ? cbt.ctx.label : "";
+  cbtCount.textContent = "Question " + (cbt.current + 1) + " of " + cbt.qs.length;
+  cbtMore.classList.toggle("hidden", !cbt.loading);
+  cbtResume.classList.toggle("hidden", cbt.loading || cbt.submitted || cbt.pending.length === 0);
+  const shownNote = [cbt.note, cbt.warn].filter(Boolean).join(" ");
+  cbtNote.textContent = shownNote;
+  cbtNote.classList.toggle("hidden", !shownNote);
+  cbtNext.disabled = cbt.current >= cbt.qs.length - 1;
+}
+
+function renderPalette() {
+  cbtPalette.innerHTML = "";
+  cbt.qs.forEach(function (q, i) {
+    const b = document.createElement("button");
+    b.className = "pal" + (i === cbt.current ? " cur" : "") + (cbt.picked[i] >= 0 ? " done" : "") + (cbt.flagged[i] ? " flag" : "");
+    b.textContent = String(i + 1);
+    b.addEventListener("click", function () { goToQuestion(i); });
+    cbtPalette.appendChild(b);
   });
 }
 
-function chooseOption(i, div) {
-  if (answered) return;
-  answered = true;
-  const q = quizQuestions[quizIndex];
-  recordAnswer(q, i === q.answer);
-  if (i === q.answer) {
-    quizScore++;
-    div.classList.add("correct");
-    quizFeedback.textContent = "Correct. " + q.explanation;
-  } else {
-    div.classList.add("wrong");
-    quizOptions.children[q.answer].classList.add("correct");
-    quizFeedback.textContent = "Not quite. " + q.explanation;
+function renderCbt() {
+  const q = cbt.qs[cbt.current];
+  cbtQuestion.textContent = q.question;
+  cbtOptions.innerHTML = "";
+  q.options.forEach(function (text, i) {
+    const row = document.createElement("div");
+    row.className = "opt" + (cbt.picked[cbt.current] === i ? " sel" : "");
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = letters[i];
+    const label = document.createElement("span");
+    label.className = "opt-text";
+    label.textContent = text;
+    row.appendChild(badge);
+    row.appendChild(label);
+    row.addEventListener("click", function () { pickAnswer(i); });
+        cbtOptions.appendChild(row);
+  });
+  renderMath(cbtQuestion);
+  renderMath(cbtOptions);
+  cbtPrev.disabled = cbt.current === 0;
+  cbtFlag.classList.toggle("on", cbt.flagged[cbt.current]);
+  cbtFlag.textContent = cbt.flagged[cbt.current] ? "⚑ FLAGGED" : "⚑ FLAG";
+  renderCbtHeader();
+  renderPalette();
+}
+
+function pickAnswer(i) {
+  if (!cbt.active || cbt.submitted) return;
+  cbt.picked[cbt.current] = i;
+  renderCbt();
+  const row = cbtOptions.children[i];
+  if (row) row.classList.add("pop");
+}
+
+// Adds the time spent on the question that is on screen. A pause longer than 3 minutes counts as 3 (phone asleep, etc.).
+function accrueTime() {
+  if (!cbt.active || cbt.submitted || cbt.shownAt === 0) return;
+  const now = Date.now();
+  cbt.times[cbt.current] += Math.min(now - cbt.shownAt, 180000);
+  cbt.shownAt = now;
+}
+
+function goToQuestion(n) {
+  if (!cbt.active || cbt.submitted) return;
+  if (n < 0 || n >= cbt.qs.length) return;
+  accrueTime();
+  cbt.current = n;
+  renderCbt();
+  window.scrollTo(0, 0);
+}
+
+function toggleFlag() {
+  if (!cbt.active || cbt.submitted) return;
+  cbt.flagged[cbt.current] = !cbt.flagged[cbt.current];
+  renderCbt();
+}
+
+function tickCbt() {
+  if (!cbt.active || cbt.submitted) return;
+  const left = cbt.endsAt - Date.now();
+  cbtTimer.textContent = clockText(left);
+  cbtTimer.classList.toggle("low", left < 60000);
+  if (left <= 0) submitCbt(true);
+}
+
+// More questions arrive in the background while the student is already answering.
+function appendQuestions(list) {
+  if (!cbt.active || cbt.submitted || list.length === 0) return;
+  list.forEach(function (q) {
+    cbt.qs.push(q);
+    cbt.picked.push(-1);
+    cbt.flagged.push(false);
+    cbt.times.push(0);
+  });
+  cbt.endsAt += list.length * 60000;
+  if (list.some(function (q) { return q.unchecked; }) && cbt.note.indexOf("double-checked") === -1) {
+    cbt.note = (cbt.note ? cbt.note + " " : "") + "Some questions could not be double-checked.";
   }
-  quizNext.textContent = quizIndex === quizQuestions.length - 1 ? "FINISH" : "NEXT";
-  quizNext.classList.remove("hidden");
+  renderCbtHeader();
+  renderPalette();
+  tickCbt();
 }
 
-function showResult() {
-  recordQuiz(quizScore, quizQuestions.length);
-  quizProgress.textContent = "RESULT";
-  quizQuestion.textContent = "You scored " + quizScore + " out of " + quizQuestions.length;
-  quizOptions.innerHTML = "";
-  quizFeedback.textContent = "";
-  quizNext.textContent = "BACK TO STUDY";
-  quizNext.classList.remove("hidden");
+function submitCbt(auto) {
+  if (!cbt.active || cbt.submitted) return;
+  if (!auto) {
+    const blank = cbt.picked.filter(function (p) { return p < 0; }).length;
+    const message = blank > 0
+      ? "You have " + blank + " unanswered question" + (blank === 1 ? "" : "s") + ". Submit anyway?"
+      : "Submit your answers now?";
+    if (!confirm(message)) return;
+  }
+  accrueTime();
+  cbt.submitted = true;
+  genToken++;
+  cbt.loading = false;
+  stopCbtTimer();
+  cbt.usedMs = Date.now() - cbt.startedAt;
+  let score = 0;
+  cbt.qs.forEach(function (q, i) {
+    if (cbt.picked[i] < 0) return;
+    const right = cbt.picked[i] === q.answer;
+    if (right) score++;
+    recordAnswer(q, right, cbt.times[i]);
+  });
+  recordQuiz(score, cbt.qs.length);
+  showCbtResult(auto);
 }
 
+function setReviewTab() {
+  document.getElementById("cr-tab-wrong").classList.toggle("active", cbt.review === "wrong");
+  document.getElementById("cr-tab-all").classList.toggle("active", cbt.review === "all");
+}
+
+function showCbtResult(auto) {
+  const total = cbt.qs.length;
+  let right = 0;
+  let wrong = 0;
+  let skip = 0;
+  cbt.qs.forEach(function (q, i) {
+    if (cbt.picked[i] < 0) skip++;
+    else if (cbt.picked[i] === q.answer) right++;
+    else wrong++;
+  });
+  const pct = total > 0 ? Math.round((right / total) * 100) : 0;
+  document.getElementById("cr-score").textContent = pct + "%";
+  document.getElementById("cr-right").textContent = right;
+  document.getElementById("cr-wrong").textContent = wrong;
+  document.getElementById("cr-skip").textContent = skip;
+  document.getElementById("cr-time").textContent = clockText(cbt.usedMs);
+  document.getElementById("cr-line").textContent = (auto ? "Time is up, so your answers were submitted. " : "") +
+    right + " out of " + total + " correct. " +
+    (pct >= 70 ? "Strong work." : pct >= 50 ? "Good effort. Go through the mistakes below." : "Keep going. Read each mistake below, then try again.");
+  cbtExam.classList.add("hidden");
+  cbtResult.classList.remove("hidden");
+  document.body.classList.remove("in-cbt");
+  cbt.review = wrong + skip > 0 ? "wrong" : "all";
+  setReviewTab();
+  renderReview();
+  renderAnalytics();
+  window.scrollTo(0, 0);
+}
+
+// Groups the questions by sub-topic (or topic) and adds up accuracy and time for each group.
+function cbtBreakdown() {
+  const groups = {};
+  cbt.qs.forEach(function (q, i) {
+    const name = q.subtopic || q.topic;
+    if (!groups[name]) groups[name] = { name: name, topic: q.topic, course: q.course, n: 0, answered: 0, right: 0, ms: 0, timed: 0 };
+    const g = groups[name];
+    g.n++;
+    if (cbt.times[i] > 0) { g.ms += cbt.times[i]; g.timed++; }
+    if (cbt.picked[i] >= 0) {
+      g.answered++;
+      if (cbt.picked[i] === q.answer) g.right++;
+    }
+  });
+  return Object.keys(groups).map(function (k) { return groups[k]; });
+}
+
+function renderAnalytics() {
+  const box = document.getElementById("cr-breakdown");
+  const insight = document.getElementById("cr-insight");
+  const studyButton = document.getElementById("cr-study");
+  box.innerHTML = "";
+  studyButton.classList.add("hidden");
+  cbt.studyTopic = null;
+
+  const groups = cbtBreakdown();
+  let totalMs = 0;
+  let timed = 0;
+  groups.forEach(function (g) { totalMs += g.ms; timed += g.timed; });
+  const avgSec = timed > 0 ? Math.round(totalMs / timed / 1000) : 0;
+  function groupSec(g) { return g.timed > 0 ? Math.round(g.ms / g.timed / 1000) : 0; }
+  function accuracy(g) { return g.answered > 0 ? g.right / g.answered : 0; }
+
+  const lines = [];
+  if (avgSec > 0) {
+    lines.push("You averaged " + avgSec + "s per question. The exam timer allows 60s." + (avgSec > 60 ? " You are slower than exam pace, so practise answering faster." : ""));
+  }
+  const withTime = groups.filter(function (g) { return g.timed > 0; });
+  if (withTime.length > 1) {
+    const slowest = withTime.slice().sort(function (a, b) { return groupSec(b) - groupSec(a); })[0];
+    lines.push("Most time went on " + slowest.name + " (about " + groupSec(slowest) + "s each).");
+  }
+  const attempted = groups.filter(function (g) { return g.answered > 0; });
+  const ranked = attempted.slice().sort(function (a, b) { return accuracy(a) - accuracy(b) || groupSec(b) - groupSec(a); });
+  const weakest = ranked.length > 0 && accuracy(ranked[0]) < 1 ? ranked[0] : null;
+  if (weakest) lines.push("Weakest area: " + weakest.name + " (" + Math.round(accuracy(weakest) * 100) + "% correct).");
+  insight.textContent = lines.length > 0 ? lines.join(" ") : "Answer some questions to see your speed and accuracy.";
+
+  const rows = ranked.concat(groups.filter(function (g) { return g.answered === 0; }));
+  rows.slice(0, 10).forEach(function (g) {
+    const row = document.createElement("div");
+    row.className = "bd";
+    const top = document.createElement("div");
+    top.className = "bd-top";
+    const name = document.createElement("span");
+    name.textContent = g.name;
+    const stat = document.createElement("span");
+    stat.className = "bd-stat";
+    stat.textContent = g.answered > 0
+      ? Math.round(accuracy(g) * 100) + "% · " + groupSec(g) + "s avg · " + g.answered + "/" + g.n + " answered"
+      : "not attempted";
+    top.appendChild(name);
+    top.appendChild(stat);
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    fill.style.width = Math.round(accuracy(g) * 100) + "%";
+    bar.appendChild(fill);
+    row.appendChild(top);
+    row.appendChild(bar);
+
+    const tags = document.createElement("div");
+    tags.className = "bd-tags";
+    function tag(kind, text) {
+      const t = document.createElement("span");
+      t.className = "bd-tag " + kind;
+      t.textContent = text;
+      tags.appendChild(t);
+    }
+    if (g.answered >= 2 && accuracy(g) < 0.6) tag("weak", "WEAK");
+    if (g.timed >= 2 && groupSec(g) >= 20 && avgSec > 0 && groupSec(g) > avgSec * 1.3) tag("slow", "SLOW");
+    if (g.answered === 0) tag("skip", "SKIPPED");
+    if (tags.children.length > 0) row.appendChild(tags);
+    box.appendChild(row);
+  });
+
+  if (weakest && weakest.topic) {
+    cbt.studyTopic = { courseId: weakest.course, topic: weakest.topic };
+    studyButton.textContent = "READ UP: " + weakest.topic.toUpperCase();
+    studyButton.classList.remove("hidden");
+  }
+}
+
+function renderReview() {
+  const box = document.getElementById("cr-review");
+  box.innerHTML = "";
+  let shown = 0;
+  cbt.qs.forEach(function (q, i) {
+    const p = cbt.picked[i];
+    const status = p < 0 ? "skip" : p === q.answer ? "ok" : "bad";
+    if (cbt.review === "wrong" && status === "ok") return;
+    shown++;
+
+    const card = document.createElement("div");
+    card.className = "rev " + status;
+        card.className = "rev " + status;
+    card.style.animationDelay = Math.min(i * 70, 700) + "ms";
+    const head = document.createElement("div");
+    head.className = "rev-head";
+    const left = document.createElement("span");
+    left.textContent = "Q" + (i + 1) + " · " + q.topic;
+    const tag = document.createElement("span");
+    tag.className = "rev-tag";
+    tag.textContent = status === "ok" ? "CORRECT" : status === "bad" ? "WRONG" : "SKIPPED";
+    head.appendChild(left);
+    head.appendChild(tag);
+    card.appendChild(head);
+
+    const text = document.createElement("div");
+    text.className = "rev-q";
+    text.textContent = q.question;
+    card.appendChild(text);
+
+    q.options.forEach(function (option, k) {
+      const line = document.createElement("div");
+      line.className = "rev-opt" + (k === q.answer ? " right" : "") + (k === p && k !== q.answer ? " wrong" : "");
+      line.textContent = letters[k] + ".  " + option + (k === q.answer ? "   ✓" : "") + (k === p && k !== q.answer ? "   (your answer)" : "");
+      card.appendChild(line);
+    });
+
+    if (q.explanation) {
+      const why = document.createElement("div");
+      why.className = "why";
+      why.textContent = q.explanation;
+      card.appendChild(why);
+    }
+    if (status !== "ok") {
+      const ask = document.createElement("button");
+      ask.className = "mini";
+      ask.textContent = "ASK TUTOR";
+      ask.addEventListener("click", function () { askTutorAbout(q, p); });
+      card.appendChild(ask);
+    }
+    box.appendChild(card);
+  });
+  if (shown === 0) {
+    const p = document.createElement("p");
+    p.className = "small";
+    p.textContent = "No mistakes. Perfect score!";
+    box.appendChild(p);
+  }
+  renderMath(box);
+}
+
+function askTutorAbout(q, picked) {
+  setMode(courseModes[q.course] || "general");
+  showScreen("ai");
+  if (aiBusy) return;
+  const short = q.question.length > 90 ? q.question.slice(0, 90) + "..." : q.question;
+  addMessage("Explain this exam question: " + short, "user");
+  simplerLevel = 1;
+  const options = q.options.map(function (o, i) { return letters[i] + ". " + o; }).join("\n");
+  askAI("Explain this CBT exam question to me step by step.\nQuestion: " + q.question + "\n" + options +
+    "\nThe marked correct answer is " + letters[q.answer] + "." +
+    (picked >= 0 ? " I chose " + letters[picked] + "." : " I skipped it.") +
+    " Show why the correct answer is right and why the others are wrong.");
+}
+
+function closeCbt() {
+  stopCbtTimer();
+  genToken++;
+  cbt.active = false;
+  cbt.submitted = false;
+  cbt.loading = false;
+  document.body.classList.remove("in-cbt");
+  const back = cbt.returnTo;
+  cbt.returnTo = "";
+  if (back === "reader" && reader.course) setStudyView("reader");
+  else if ((back === "topics" || back === "reader") && studyCourse) setStudyView("topics");
+  else setStudyView("home");
+  setGenStatus("");
+  renderLaunch();
+}
+
+// Called by other screens. It never throws away an exam that is still in progress.
 function exitQuiz() {
-  quiz.classList.add("hidden");
-  courseList.classList.remove("hidden");
-  cbtCourse.classList.remove("hidden");
-  startCbt.classList.remove("hidden");
+  if (cbt.active && !cbt.submitted) return;
+  closeCbt();
 }
 
-quizNext.addEventListener("click", function () {
-  if (quizIndex >= quizQuestions.length) {
-    exitQuiz();
-    return;
-  }
-  quizIndex++;
-  if (quizIndex < quizQuestions.length) {
-    showQuestion();
-  } else {
-    showResult();
+function leaveExam() {
+  if (!cbt.active) return;
+  if (!cbt.submitted && !confirm("Leave this quiz? Your answers will not be saved.")) return;
+  closeCbt();
+}
+
+cbtPrev.addEventListener("click", function () { goToQuestion(cbt.current - 1); });
+cbtNext.addEventListener("click", function () { goToQuestion(cbt.current + 1); });
+cbtFlag.addEventListener("click", toggleFlag);
+document.getElementById("cbt-submit").addEventListener("click", function () { submitCbt(false); });
+document.getElementById("cbt-exit").addEventListener("click", leaveExam);
+cbtResume.addEventListener("click", resumeLoading);
+document.getElementById("cr-close").addEventListener("click", closeCbt);
+document.getElementById("cr-study").addEventListener("click", function () {
+  const target = cbt.studyTopic;
+  if (!target) return;
+  const course = courses.find(function (c) { return c.id === target.courseId; });
+  if (!course) return;
+  closeCbt();
+  openReading(course, target.topic);
+});
+document.getElementById("cr-tab-wrong").addEventListener("click", function () { cbt.review = "wrong"; setReviewTab(); renderReview(); });
+document.getElementById("cr-tab-all").addEventListener("click", function () { cbt.review = "all"; setReviewTab(); renderReview(); });
+document.getElementById("cr-again").addEventListener("click", function () {
+  const ctx = cbt.ctx;
+  closeCbt();
+  if (ctx && ctx.courseId && !ctx.saved) beginGeneratedQuiz({ courseId: ctx.courseId, topic: ctx.topic });
+  else startSavedPractice();
+});
+window.addEventListener("beforeunload", function (e) {
+  if (cbt.active && !cbt.submitted) {
+    e.preventDefault();
+    e.returnValue = "";
   }
 });
-
-startCbt.addEventListener("click", startQuiz);
 
 const sessionCourse = document.getElementById("session-course");
 const sessionTopic = document.getElementById("session-topic");
@@ -455,6 +1028,7 @@ function showScreen(id) {
   buttons.forEach(function (b) { b.classList.remove("active"); });
   document.getElementById(id).classList.add("active");
   document.querySelector('nav button[data-screen="' + id + '"]').classList.add("active");
+  if (id === "study") renderLaunch();
   if (id === "planner" && !sessionLive.classList.contains("hidden")) {
     showPlannerView("session");
   }
@@ -463,8 +1037,10 @@ function showScreen(id) {
 function openSessionStudy() {
   if (!sessionCourseObj) return;
   showScreen("study");
-  exitQuiz();
-  showTopics(sessionCourseObj);
+  if (cbt.active && !cbt.submitted) return; // never interrupt an exam in progress
+  const topic = sessionTopic.value;
+  if (topic && sessionCourseObj.topics.indexOf(topic) !== -1) openReading(sessionCourseObj, topic);
+  else showTopics(sessionCourseObj);
 }
 
 function fillSessionTopics() {
@@ -856,6 +1432,7 @@ setInterval(renderTimetable, 60000);
 // ===== PROGRESS AND PROFILE =====
 const progressKey = "studycore-progress";
 const dailyTargetMinutes = 120;
+const examKey = "studycore-exam";
 let nextSlot = null;
 let nextMinutes = 45;
 
@@ -905,8 +1482,10 @@ function recordSession(ms) {
   renderProfile();
 }
 
-function recordAnswer(q, correct) {
-  progress.answers.push({ date: dateKey(new Date()), course: q.course, topic: q.topic, correct: correct });
+function recordAnswer(q, correct, ms) {
+  const entry = { date: dateKey(new Date()), course: q.course, topic: q.topic, correct: correct };
+  if (typeof ms === "number" && ms > 0) entry.ms = Math.round(ms);
+  progress.answers.push(entry);
   if (progress.answers.length > 2000) progress.answers = progress.answers.slice(-2000);
   saveProgress();
 }
@@ -1054,6 +1633,7 @@ function homeText(id, text) {
 function renderHome() 
 {
   renderWeak();
+  renderExam();
   const fill = document.getElementById("h-fill");
   if (!fill) return;
 
@@ -1125,8 +1705,9 @@ if (continueCard) {
     const course = courses.find(function (c) { return c.id === last.courseId; });
     if (!course) return;
     showScreen("study");
-    exitQuiz();
-    showTopics(course);
+    if (cbt.active && !cbt.submitted) return;
+    if (last.topic && course.topics.indexOf(last.topic) !== -1) openReading(course, last.topic);
+    else showTopics(course);
   });
 }
 
@@ -1135,7 +1716,8 @@ document.querySelectorAll("[data-go]").forEach(function (b) {
     const go = b.dataset.go;
     if (go === "cbt") {
       showScreen("study");
-      startQuiz();
+      const ctx = launchContext();
+      if (ctx) beginGeneratedQuiz(ctx);
       return;
     }
     showScreen(go);
@@ -1215,13 +1797,8 @@ if (nextButton) {
 }
 
 function practiseTopic(courseId, topic) {
-  const pool = questions.filter(function (q) { return q.course === courseId && q.topic === topic; });
-  if (pool.length === 0) {
-    alert("No saved questions for this topic yet.");
-    return;
-  }
   showScreen("study");
-  beginQuiz(pool);
+  beginGeneratedQuiz({ courseId: courseId, topic: topic });
 }
 
 function explainTopic(courseId, topic) {
@@ -1236,4 +1813,749 @@ function explainTopic(courseId, topic) {
     ". Explain it in simple words, then ask me one short question to check that I understood.");
 }
 
-setInterval(renderHome, 60000);
+// ===== AI-GENERATED CBT: built from what you are studying =====
+const QUIZ_URL = "https://yepsrbpykoybuqgkduml.supabase.co/functions/v1/make-quiz";
+const researchKey = "studycore-research";
+
+function loadResearch() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(researchKey));
+    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// The fact sheet the AI gathered from the web for a topic. It is kept, so the next quiz on that topic is faster.
+let researchCache = loadResearch();
+
+function keepResearch(key, text) {
+  researchCache[key] = text;
+  const keys = Object.keys(researchCache);
+  if (keys.length > 40) delete researchCache[keys[0]];
+  try { localStorage.setItem(researchKey, JSON.stringify(researchCache)); } catch (e) {}
+}
+
+function setGenStatus(text) {
+  ["gen-status", "gen-status-2", "rd-status"].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  });
+}
+
+function setGenButtons(disabled) {
+  document.querySelectorAll("#gen-go, #course-quiz, #topic-list .mini").forEach(function (b) { b.disabled = disabled; });
+  updateReaderButtons();
+}
+
+function friendlyError(err) {
+  if (err && err.name === "AbortError") return "The AI took too long.";
+  if (err instanceof TypeError) return "Could not reach the AI. Check your internet.";
+  return (err && err.message) || "Something went wrong.";
+}
+
+function normQuestion(t) {
+  return t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function savedForCtx(ctx) {
+  return savedQuestions().filter(function (q) {
+    return q.course === ctx.courseId && (!ctx.topic || q.topic === ctx.topic);
+  });
+}
+
+function cacheGenerated(list) {
+  const seen = {};
+  aiBank.forEach(function (q) { seen[q.course + "|" + q.topic + "|" + q.question] = true; });
+  list.forEach(function (q) {
+    if (q.unchecked) return;
+    const key = q.course + "|" + q.topic + "|" + q.question;
+    if (seen[key]) return;
+    seen[key] = true;
+    aiBank.push({ id: q.id, course: q.course, topic: q.topic, subtopic: q.subtopic || "", question: q.question, options: q.options, answer: q.answer, explanation: q.explanation, ai: true });
+  });
+  if (aiBank.length > 300) aiBank = aiBank.slice(-300);
+  saveAiBank();
+}
+
+async function requestQuiz(body) {
+  if (!navigator.onLine) throw new Error("You are offline.");
+  const controller = new AbortController();
+  const timer = setTimeout(function () { controller.abort(); }, 120000);
+  try {
+    const res = await fetch(QUIZ_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !Array.isArray(data.questions) || data.questions.length === 0) {
+      throw new Error(data.error || "Could not make questions. Please try again.");
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Asks for one set of questions. "existing" are the questions already in this exam, so nothing repeats.
+async function fetchBatch(ctx, step, existing) {
+  const course = courses.find(function (c) { return c.id === ctx.courseId; });
+  const sheetKey = ctx.courseId + "|" + step.topic;
+  const everAsked = aiBank
+    .filter(function (q) { return q.course === ctx.courseId && q.topic === step.topic; })
+    .map(function (q) { return q.question; })
+    .concat(existing.filter(function (q) { return q.topic === step.topic; }).map(function (q) { return q.question; }));
+  const earlier = everAsked.filter(function (q, i) { return everAsked.indexOf(q) === i; });
+  const data = await requestQuiz({
+    source: ctx.notes ? "notes" : "topic",
+    courseName: course.name,
+    topic: step.topic,
+    count: step.count,
+    batch: step.batch,
+    notes: ctx.notes || "",
+    reference: ctx.notes ? "" : (researchCache[sheetKey] || ""),
+    avoid: earlier.slice(-30)
+  });
+  if (data.reference) keepResearch(sheetKey, data.reference);
+
+  const seen = {};
+  existing.forEach(function (q) { seen[normQuestion(q.question)] = true; });
+  const list = [];
+  data.questions.filter(validQuestion).forEach(function (q, i) {
+    const key = normQuestion(q.question);
+    if (seen[key]) return;
+    seen[key] = true;
+    list.push({
+      id: "ai-" + Date.now() + "-" + step.batch + "-" + i,
+      course: ctx.courseId,
+      topic: step.topic,
+      subtopic: typeof q.subtopic === "string" ? q.subtopic : "",
+      question: q.question,
+      options: q.options,
+      answer: q.answer,
+      explanation: q.explanation || "",
+      ai: true,
+      unchecked: data.checked === false
+    });
+  });
+  if (list.length === 0) throw new Error("The AI sent questions the app could not use. Please try again.");
+  if (!ctx.notes) cacheGenerated(list);
+  return { list: list, checked: data.checked !== false };
+}
+
+// One topic: 4 sets of 10. Whole course: up to 5 topics, weak ones first, 8 questions each.
+function buildPlan(ctx, course) {
+  if (ctx.notes) {
+    return [1, 2].map(function (n) { return { topic: ctx.topic, count: 10, batch: n }; });
+  }
+  if (ctx.topic) {
+    return [1, 2, 3, 4].map(function (n) { return { topic: ctx.topic, count: 10, batch: n }; });
+  }
+  const stats = {};
+  progress.answers.forEach(function (a) {
+    if (a.course !== course.id) return;
+    if (!stats[a.topic]) stats[a.topic] = { tries: 0, right: 0 };
+    stats[a.topic].tries++;
+    if (a.correct) stats[a.topic].right++;
+  });
+  function accuracy(t) { return stats[t].right / stats[t].tries; }
+  const weak = Object.keys(stats)
+    .filter(function (t) { return stats[t].tries >= 2 && accuracy(t) < 0.7 && course.topics.indexOf(t) !== -1; })
+    .sort(function (a, b) { return accuracy(a) - accuracy(b); });
+  const rest = shuffle(course.topics.filter(function (t) { return weak.indexOf(t) === -1; }));
+  return weak.concat(rest).slice(0, 5).map(function (t) { return { topic: t, count: 8, batch: 1 }; });
+}
+
+let retryDelayMs = 3000;
+
+// "Took too long" and "busy" often work on a second try. A rate limit does not, so that one is not retried.
+function isTransient(message) {
+  return /took too long|very busy|Could not reach/.test(message || "");
+}
+
+async function loadMore(ctx, steps, token) {
+  cbt.pending = steps.slice();
+  cbt.warn = "";
+  cbt.loading = steps.length > 0;
+  renderCbtHeader();
+  while (cbt.pending.length > 0) {
+    if (token !== genToken || !cbt.active || cbt.submitted) return;
+    const step = cbt.pending[0];
+    let result = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      try {
+        result = await fetchBatch(ctx, step, cbt.qs);
+      } catch (err) {
+        lastError = err;
+        if (token !== genToken || !cbt.active || cbt.submitted) return;
+        if (!isTransient(friendlyError(err))) break;
+        if (attempt === 0) await new Promise(function (resolve) { setTimeout(resolve, retryDelayMs); });
+      }
+    }
+    if (token !== genToken || !cbt.active || cbt.submitted) return;
+    if (!result) {
+      cbt.warn = "Stopped loading more questions: " + friendlyError(lastError) + " Tap LOAD MORE to continue.";
+      break;
+    }
+    cbt.pending.shift();
+    appendQuestions(ctx.topic ? result.list : shuffle(result.list));
+  }
+  if (token === genToken && cbt.active && !cbt.submitted) {
+    cbt.loading = false;
+    renderCbtHeader();
+  }
+}
+
+function resumeLoading() {
+  if (!cbt.active || cbt.submitted || cbt.loading || cbt.pending.length === 0) return;
+  loadMore(cbt.ctx, cbt.pending, genToken);
+}
+
+async function beginGeneratedQuiz(input) {
+  if (genBusy || (cbt.active && !cbt.submitted)) return;
+  const course = courses.find(function (c) { return c.id === input.courseId; });
+  if (!course) return;
+  if (cbt.active) closeCbt();
+  const ctx = {
+    courseId: course.id,
+    topic: input.topic || null,
+    notes: input.notes || "",
+    label: courseCode(course) + " · " + (input.topic || "Mixed topics") + (input.notes ? " · my notes" : "")
+  };
+  const plan = buildPlan(ctx, course);
+  const token = ++genToken;
+
+  genBusy = true;
+  setGenButtons(true);
+  setGenStatus("Preparing your quiz. The AI looks the topic up on the web, writes questions and double-checks them. Usually 20 to 40 seconds...");
+  let first;
+  try {
+    first = await fetchBatch(ctx, plan[0], []);
+  } catch (err) {
+    genBusy = false;
+    setGenButtons(false);
+    if (token !== genToken) return;
+    const message = friendlyError(err);
+    const pool = savedForCtx(ctx);
+    if (pool.length > 0) {
+      setGenStatus("");
+      startCbt(ctx, shuffle(pool).slice(0, 40), { note: message + " Using saved questions instead." });
+    } else {
+      setGenStatus(message + " Please try again in a moment.");
+    }
+    return;
+  }
+  genBusy = false;
+  setGenButtons(false);
+  setGenStatus("");
+  if (token !== genToken) return;
+  startCbt(ctx, first.list, { note: first.checked ? "" : "These questions could not be double-checked." });
+  loadMore(ctx, plan.slice(1), token);
+}
+
+// What is the student doing right now? A live session first, then the last thing they studied.
+function launchContext() {
+  if (sessionTimer !== null && sessionCourseObj) {
+    return { courseId: sessionCourseObj.id, topic: sessionTopic.value, live: true };
+  }
+  const last = progress.sessions[progress.sessions.length - 1];
+  if (last && courses.some(function (c) { return c.id === last.courseId; })) {
+    return { courseId: last.courseId, topic: last.topic, live: false };
+  }
+  return null;
+}
+
+function renderLaunch() {
+  const title = document.getElementById("ql-title");
+  if (!title) return;
+  const ctx = launchContext();
+  const button = document.getElementById("gen-go");
+  if (!ctx) {
+    document.getElementById("ql-label").textContent = "CBT PRACTICE";
+    title.textContent = "Quiz yourself";
+    document.getElementById("ql-sub").textContent = "Start a study session, or open a course below. The AI then makes a CBT quiz from what you are studying.";
+    button.classList.add("hidden");
+    return;
+  }
+  const course = courses.find(function (c) { return c.id === ctx.courseId; });
+  document.getElementById("ql-label").textContent = ctx.live ? "CBT · FROM YOUR LIVE SESSION" : "CBT · FROM WHAT YOU STUDIED LAST";
+  title.textContent = "Quiz me on " + ctx.topic;
+  document.getElementById("ql-sub").textContent = course.name + ". As many questions as the AI can make, from the web and its own knowledge.";
+  button.classList.remove("hidden");
+}
+
+function startSavedPractice() {
+  const pool = studyCourse
+    ? savedQuestions().filter(function (q) { return q.course === studyCourse.id; })
+    : savedQuestions();
+  if (pool.length === 0) {
+    setGenStatus("No saved questions yet. Generate a quiz first, and its questions are saved here for offline practice.");
+    return;
+  }
+  const label = studyCourse ? courseCode(studyCourse) + " · Saved questions" : "Saved questions";
+  startCbt(
+    { courseId: studyCourse ? studyCourse.id : null, topic: null, label: label, saved: true },
+    shuffle(pool).slice(0, 40),
+    { note: "Saved questions. These work without internet." }
+  );
+}
+
+document.getElementById("gen-go").addEventListener("click", function () {
+  const ctx = launchContext();
+  if (ctx) beginGeneratedQuiz(ctx);
+});
+document.getElementById("course-quiz").addEventListener("click", function () {
+  if (studyCourse) beginGeneratedQuiz({ courseId: studyCourse.id, topic: null });
+});
+document.getElementById("offline-practice").addEventListener("click", startSavedPractice);
+buttons.forEach(function (b) {
+  b.addEventListener("click", function () {
+    if (b.dataset.screen === "study") renderLaunch();
+  });
+});
+renderLaunch();
+
+// ===== EXAM COUNTDOWN (Home) =====
+function loadExam() {
+  try {
+    const value = localStorage.getItem(examKey);
+    const date = value ? new Date(value) : null;
+    return date && !isNaN(date.getTime()) ? date : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function localInputValue(d) {
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+function renderExam() {
+  const count = document.getElementById("h-exam-count");
+  if (!count) return;
+  const label = document.getElementById("h-exam-label");
+  const dateLine = document.getElementById("h-exam-date");
+  const edit = document.getElementById("h-exam-edit");
+  const exam = loadExam();
+  edit.textContent = exam ? "CHANGE DATE" : "SET DATE";
+  if (!exam) {
+    label.textContent = "SEMESTER EXAMS";
+    count.textContent = "Set your exam date";
+    dateLine.textContent = "Then you will see exactly how many days, hours and minutes are left.";
+    return;
+  }
+  const ms = exam.getTime() - Date.now();
+  const when = exam.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) +
+    " · " + pad(exam.getHours()) + ":" + pad(exam.getMinutes());
+  if (ms > 0) {
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    label.textContent = "EXAMS START IN";
+    count.textContent = days + "d " + pad(hours) + "h " + pad(minutes) + "m";
+    dateLine.textContent = when;
+  } else if (ms > -30 * 86400000) {
+    label.textContent = "SEMESTER EXAMS";
+    count.textContent = "Exams are on. All the best!";
+    dateLine.textContent = "Started " + when;
+  } else {
+    label.textContent = "SEMESTER EXAMS";
+    count.textContent = "Set your next exam date";
+    dateLine.textContent = "The last date has passed.";
+  }
+}
+
+document.getElementById("h-exam-edit").addEventListener("click", function () {
+  const form = document.getElementById("h-exam-form");
+  const exam = loadExam();
+  document.getElementById("h-exam-input").value = exam ? localInputValue(exam) : "";
+  form.classList.toggle("hidden");
+});
+document.getElementById("h-exam-save").addEventListener("click", function () {
+  const value = document.getElementById("h-exam-input").value;
+  const date = value ? new Date(value) : null;
+  if (!date || isNaN(date.getTime())) return;
+  try { localStorage.setItem(examKey, date.toISOString()); } catch (e) {}
+  document.getElementById("h-exam-form").classList.add("hidden");
+  renderExam();
+});
+document.getElementById("h-exam-clear").addEventListener("click", function () {
+  try { localStorage.removeItem(examKey); } catch (e) {}
+  document.getElementById("h-exam-form").classList.add("hidden");
+  renderExam();
+});
+
+// ===== READING VIEW: AI lessons and your own notes =====
+const maxNotesChars = 12000;
+const lessonsKey = "studycore-lessons";
+const notesKey = "studycore-notes";
+
+function loadStore(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key));
+    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+let lessons = loadStore(lessonsKey);
+let notesStore = loadStore(notesKey);
+
+function topicKey(courseId, topic) {
+  return courseId + "|" + topic;
+}
+
+function validLesson(l) {
+  return !!l && Array.isArray(l.sections) && l.sections.length > 0;
+}
+
+function saveLessons() {
+  const keys = Object.keys(lessons);
+  if (keys.length > 60) {
+    keys.sort(function (a, b) { return lessons[a].savedAt - lessons[b].savedAt; });
+    keys.slice(0, keys.length - 60).forEach(function (k) { delete lessons[k]; });
+  }
+  try { localStorage.setItem(lessonsKey, JSON.stringify(lessons)); } catch (e) {}
+}
+
+function saveNotesStore() {
+  try { localStorage.setItem(notesKey, JSON.stringify(notesStore)); } catch (e) {}
+}
+
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function mk(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text) e.textContent = text;
+  return e;
+}
+
+const reader = { course: null, topic: "", tab: "lesson", busy: false };
+const rdTabLesson = document.getElementById("rd-tab-lesson");
+const rdTabNotes = document.getElementById("rd-tab-notes");
+const rdLesson = document.getElementById("rd-lesson");
+const rdNotes = document.getElementById("rd-notes");
+const rdStatus = document.getElementById("rd-status");
+const rdBody = document.getElementById("rd-lesson-body");
+const rdGenerate = document.getElementById("rd-generate");
+const rdCaution = document.getElementById("rd-caution");
+const rdNotesText = document.getElementById("rd-notes-text");
+const rdNotesCount = document.getElementById("rd-notes-count");
+const rdFill = document.getElementById("rd-fill");
+const rdFileInput = document.getElementById("rd-file-input");
+const rdQuiz = document.getElementById("rd-quiz");
+const rdQuizNotes = document.getElementById("rd-quiz-notes");
+let notesTimer = null;
+
+function currentKey() {
+  return reader.course ? topicKey(reader.course.id, reader.topic) : "";
+}
+
+function saveCurrentNotes() {
+  if (!reader.course) return;
+  const key = currentKey();
+  const value = rdNotesText.value.slice(0, maxNotesChars);
+  if (value.trim()) notesStore[key] = value;
+  else delete notesStore[key];
+  saveNotesStore();
+  updateReaderButtons();
+}
+
+// Saves what is in the notes box right now (called before leaving the page or changing topic).
+function flushNotes() {
+  clearTimeout(notesTimer);
+  if (reader.course) saveCurrentNotes();
+}
+
+function updateNotesCount() {
+  const n = rdNotesText.value.length;
+  rdNotesCount.textContent = n + " / " + maxNotesChars + " characters" + (n >= maxNotesChars ? " (limit reached)" : "");
+}
+
+function updateReaderButtons() {
+  if (!reader.course) return;
+  const notesLong = rdNotesText.value.trim().length >= 80;
+  rdGenerate.disabled = reader.busy;
+  rdFill.disabled = reader.busy || !notesLong;
+  rdQuiz.disabled = reader.busy || genBusy;
+  rdQuizNotes.disabled = reader.busy || genBusy || !notesLong;
+}
+
+function renderLesson(box, lesson) {
+  if (lesson.summary) box.appendChild(mk("div", "ls-sum", lesson.summary));
+  lesson.sections.forEach(function (sec) {
+    box.appendChild(mk("h3", "ls-h", sec.heading));
+    if (sec.text) box.appendChild(mk("p", "ls-p", sec.text));
+    if (sec.bullets && sec.bullets.length > 0) {
+      const ul = mk("ul", "ls-ul");
+      sec.bullets.forEach(function (b) { ul.appendChild(mk("li", "", b)); });
+      box.appendChild(ul);
+    }
+    (sec.formulas || []).forEach(function (f) { box.appendChild(mk("div", "formula", f)); });
+  });
+  if (lesson.examples && lesson.examples.length > 0) {
+    box.appendChild(mk("h3", "ls-h", "Worked examples"));
+    lesson.examples.forEach(function (ex, i) {
+      const card = mk("div", "ls-ex");
+      card.appendChild(mk("b", "", "EXAMPLE " + (i + 1)));
+      card.appendChild(mk("p", "ls-p", ex.problem));
+      card.appendChild(mk("b", "", "SOLUTION"));
+      card.appendChild(mk("p", "ls-p", ex.solution));
+      box.appendChild(card);
+    });
+  }
+  [["COMMON MISTAKES", lesson.mistakes], ["KEY TAKEAWAYS", lesson.takeaways]].forEach(function (pair) {
+    const items = pair[1];
+    if (!items || items.length === 0) return;
+    const card = mk("div", "ls-box");
+    card.appendChild(mk("div", "ls-bt", pair[0]));
+    const ul = mk("ul", "ls-ul");
+    items.forEach(function (t) { ul.appendChild(mk("li", "", t)); });
+    card.appendChild(ul);
+    box.appendChild(card);
+  });
+  renderMath(box);
+}
+
+function renderReader() {
+  if (!reader.course) return;
+  const key = currentKey();
+  document.getElementById("reader-course").textContent = reader.course.name;
+  document.getElementById("reader-topic").textContent = reader.topic;
+  rdTabLesson.classList.toggle("active", reader.tab === "lesson");
+  rdTabNotes.classList.toggle("active", reader.tab === "notes");
+  rdLesson.classList.toggle("hidden", reader.tab !== "lesson");
+  rdNotes.classList.toggle("hidden", reader.tab !== "notes");
+
+  rdBody.innerHTML = "";
+  const saved = lessons[key];
+  if (saved && validLesson(saved.lesson)) {
+    if (saved.withNotes) rdBody.appendChild(mk("p", "small", "Built from your notes and the web."));
+    renderLesson(rdBody, saved.lesson);
+    rdGenerate.textContent = "WRITE A NEW LESSON";
+    rdCaution.classList.remove("hidden");
+  } else {
+    rdBody.appendChild(mk("p", "small", "No lesson yet. Tap the button and the AI writes one for this topic, using the web. It is saved on your phone, so next time it opens instantly, even offline."));
+    rdGenerate.textContent = "WRITE A LESSON";
+    rdCaution.classList.add("hidden");
+  }
+
+  const notes = notesStore[key] || "";
+  if (rdNotesText.value !== notes) rdNotesText.value = notes;
+  updateNotesCount();
+  updateReaderButtons();
+}
+
+function openReading(course, topic) {
+  if (cbt.active) {
+    if (!cbt.submitted) return;
+    closeCbt();
+  }
+  flushNotes();
+  studyCourse = course;
+  reader.course = course;
+  reader.topic = topic;
+  reader.busy = false;
+  const key = topicKey(course.id, topic);
+  reader.tab = (notesStore[key] || "").trim() ? "notes" : "lesson";
+  rdStatus.textContent = "";
+  setStudyView("reader");
+  renderReader();
+  window.scrollTo(0, 0);
+}
+
+async function requestLesson(course, topic, notes) {
+  if (!navigator.onLine) throw new Error("You are offline.");
+  const controller = new AbortController();
+  const timer = setTimeout(function () { controller.abort(); }, 150000);
+  try {
+    const res = await fetch(QUIZ_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        task: "lesson",
+        courseName: course.name,
+        topic: topic,
+        notes: notes,
+        reference: researchCache[topicKey(course.id, topic)] || ""
+      }),
+      signal: controller.signal
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !validLesson(data.lesson)) {
+      throw new Error(data.error || "Could not write the lesson. Please try again.");
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function generateLesson(withNotes) {
+  if (reader.busy || !reader.course) return;
+  const course = reader.course;
+  const topic = reader.topic;
+  const key = topicKey(course.id, topic);
+  flushNotes();
+  const notes = withNotes ? (notesStore[key] || "").slice(0, maxNotesChars) : "";
+  if (withNotes && notes.trim().length < 80) {
+    rdStatus.textContent = "Write a bit more in your notes first (at least a few sentences).";
+    reader.tab = "lesson";
+    renderReader();
+    return;
+  }
+  if (lessons[key] && !withNotes && !confirm("Replace the saved lesson with a new one?")) return;
+
+  reader.busy = true;
+  reader.tab = "lesson";
+  renderReader();
+  rdStatus.textContent = "Writing your lesson. The AI looks the topic up on the web first. This usually takes 30 to 60 seconds...";
+  try {
+    let data;
+    try {
+      data = await requestLesson(course, topic, notes);
+    } catch (err) {
+      if (!isTransient(friendlyError(err))) throw err;
+      await sleep(retryDelayMs);
+      data = await requestLesson(course, topic, notes);
+    }
+    if (data.reference) keepResearch(key, data.reference);
+    lessons[key] = { lesson: data.lesson, savedAt: Date.now(), withNotes: notes !== "" };
+    saveLessons();
+    rdStatus.textContent = "";
+  } catch (err) {
+    rdStatus.textContent = friendlyError(err) + " Please try again in a moment.";
+  } finally {
+    reader.busy = false;
+    if (reader.course && reader.course.id === course.id && reader.topic === topic) renderReader();
+  }
+}
+
+function askTutorTopic(simpler) {
+  if (!reader.course) return;
+  flushNotes();
+  const course = reader.course;
+  const topic = reader.topic;
+  setMode(courseModes[course.id] || "general");
+  showScreen("ai");
+  if (aiBusy) return;
+  addMessage(simpler ? "Explain " + topic + " in simpler words" : "Teach me " + topic + " (" + courseCode(course) + ")", "user");
+  simplerLevel = simpler ? 3 : 1;
+  askAI(simpler
+    ? "Explain \"" + topic + "\" from " + course.name + " in very simple words, with an everyday analogy, then ask me one short question to check I understood."
+    : "Teach me \"" + topic + "\" from " + course.name + " step by step, then ask me one short question to check I understood.");
+}
+
+rdTabLesson.addEventListener("click", function () { flushNotes(); reader.tab = "lesson"; renderReader(); });
+rdTabNotes.addEventListener("click", function () { flushNotes(); reader.tab = "notes"; renderReader(); });
+rdGenerate.addEventListener("click", function () { generateLesson(false); });
+rdFill.addEventListener("click", function () { generateLesson(true); });
+document.getElementById("reader-back").addEventListener("click", function () {
+  flushNotes();
+  if (reader.course) showTopics(reader.course);
+  else setStudyView("home");
+});
+rdNotesText.addEventListener("input", function () {
+  updateNotesCount();
+  updateReaderButtons();
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(saveCurrentNotes, 300);
+});
+document.getElementById("rd-file").addEventListener("click", function () { rdFileInput.click(); });
+rdFileInput.addEventListener("change", function () {
+  const file = rdFileInput.files && rdFileInput.files[0];
+  if (!file) return;
+  const fileReader = new FileReader();
+  fileReader.onload = function () {
+    const added = String(fileReader.result || "").trim();
+    if (added) {
+      const current = rdNotesText.value.trim();
+      rdNotesText.value = ((current ? current + "\n\n" : "") + added).slice(0, maxNotesChars);
+      saveCurrentNotes();
+      updateNotesCount();
+    }
+  };
+  fileReader.readAsText(file);
+  rdFileInput.value = "";
+});
+rdQuiz.addEventListener("click", function () {
+  if (!reader.course) return;
+  flushNotes();
+  beginGeneratedQuiz({ courseId: reader.course.id, topic: reader.topic });
+});
+rdQuizNotes.addEventListener("click", function () {
+  if (!reader.course) return;
+  flushNotes();
+  const notes = notesStore[currentKey()] || "";
+  if (notes.trim().length < 80) return;
+  beginGeneratedQuiz({ courseId: reader.course.id, topic: reader.topic, notes: notes.slice(0, maxNotesChars) });
+});
+document.getElementById("rd-tutor").addEventListener("click", function () { askTutorTopic(false); });
+document.getElementById("rd-simpler").addEventListener("click", function () { askTutorTopic(true); });
+window.addEventListener("pagehide", flushNotes);
+renderExam();
+// ===== BACKUP: export and import all saved data =====
+(function () {
+  const exportBtn = document.getElementById("backup-export");
+  const importBtn = document.getElementById("backup-import");
+  const fileInput = document.getElementById("backup-file");
+  const msg = document.getElementById("backup-msg");
+  if (!exportBtn || !importBtn || !fileInput) return;
+
+  function say(text) { if (msg) msg.textContent = text; }
+
+  exportBtn.addEventListener("click", function () {
+    const data = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf("studycore-") === 0) data[k] = localStorage.getItem(k);
+      }
+    } catch (e) { say("Could not read your saved data."); return; }
+    const count = Object.keys(data).length;
+    if (count === 0) { say("Nothing to back up yet."); return; }
+    const file = { app: "STUDY//CORE", version: 1, savedAt: new Date().toISOString(), data: data };
+    const blob = new Blob([JSON.stringify(file)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "studycore-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    say("Backup saved (" + count + " items). Keep the file somewhere safe.");
+  });
+
+  importBtn.addEventListener("click", function () { fileInput.click(); });
+
+  fileInput.addEventListener("change", function () {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      let parsed;
+      try { parsed = JSON.parse(String(reader.result)); } catch (e) { say("That file is not a valid backup."); return; }
+      if (!parsed || parsed.app !== "STUDY//CORE" || !parsed.data || typeof parsed.data !== "object") { say("That file is not a STUDY//CORE backup."); return; }
+      const keys = Object.keys(parsed.data).filter(function (k) {
+        return k.indexOf("studycore-") === 0 && typeof parsed.data[k] === "string";
+      });
+      if (keys.length === 0) { say("The backup is empty."); return; }
+      if (!confirm("Replace the data on this device with the backup from " + (parsed.savedAt || "").slice(0, 10) + "?")) return;
+      try {
+        keys.forEach(function (k) { localStorage.setItem(k, parsed.data[k]); });
+      } catch (e) { say("Could not save the backup (storage may be full)."); return; }
+      say("Backup restored. Reloading...");
+      setTimeout(function () { location.reload(); }, 600);
+    };
+    reader.readAsText(f);
+    fileInput.value = "";
+  });
+})();

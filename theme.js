@@ -92,8 +92,10 @@
       pick.textContent = on ? on.textContent : "General";
     }
     showMode();
+    new MutationObserver(showMode).observe(modes, { attributes: true, attributeFilter: ["class"], subtree: true });
 
     const plus = document.createElement("button");
+  
     plus.id = "plus-btn";
     plus.type = "button";
     plus.setAttribute("aria-label", "Study tools");

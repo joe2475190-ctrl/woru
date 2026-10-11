@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head<meta name="theme-color" content="#15171a">
+<head>
   <meta charset="UTF-8">
+  <meta name="theme-color" content="#15171a">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>STUDY//CORE</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="cbt.css">
 </head>
 <body>
   <div class="logo">STUDY//CORE</div>
@@ -15,6 +20,20 @@
  <section id="home" class="screen active">
   <h1 id="greeting">Good morning, Joseph</h1>
   <p class="small" id="h-streak"></p>
+
+  <div class="card" id="h-exam">
+    <div class="label" id="h-exam-label">SEMESTER EXAMS</div>
+    <div class="exam-count" id="h-exam-count">Set your exam date</div>
+    <p class="small" id="h-exam-date"></p>
+    <div id="h-exam-form" class="hidden">
+      <input type="datetime-local" id="h-exam-input">
+      <div class="rd-row">
+        <button class="mini" id="h-exam-save">SAVE</button>
+        <button class="mini" id="h-exam-clear">CLEAR</button>
+      </div>
+    </div>
+    <button class="mini" id="h-exam-edit">SET DATE</button>
+  </div>
 
   <div class="card">
     <div class="label">TODAY'S TARGET</div>
@@ -74,22 +93,117 @@
     <button id="send">SEND</button>
   </div>
 </section>
- <section id="study" class="screen">
+
+<section id="study" class="screen">
   <h1>Study</h1>
-  <select id="cbt-course"></select>
-  <button id="start-cbt" class="primary">START CBT PRACTICE</button>
-  <div id="course-list"></div>
+
+  <div id="study-home">
+    <div class="card" id="quiz-launch">
+      <div class="label" id="ql-label">CBT PRACTICE</div>
+      <h2 id="ql-title">CBT practice</h2>
+      <p class="small" id="ql-sub"></p>
+      <p class="small" id="gen-status"></p>
+      <button class="primary hidden" id="gen-go">GENERATE QUIZ</button>
+    </div>
+    <div class="label sec-label">YOUR COURSES</div>
+    <div id="course-list"></div>
+    <button id="offline-practice" class="back">PRACTISE SAVED QUESTIONS · WORKS OFFLINE</button>
+  </div>
+
   <div id="topic-view" class="hidden">
     <button id="back" class="back">← BACK</button>
     <h2 id="course-title"></h2>
+    <p class="small" id="gen-status-2"></p>
+    <button class="primary" id="course-quiz">GENERATE QUIZ · WHOLE COURSE</button>
+    <div class="label sec-label">OR QUIZ ONE TOPIC</div>
     <div id="topic-list"></div>
   </div>
-  <div id="quiz" class="hidden">
-    <div class="label" id="quiz-progress"></div>
-    <h2 id="quiz-question"></h2>
-    <div id="quiz-options"></div>
-    <p id="quiz-feedback" class="small"></p>
-    <button id="quiz-next" class="primary hidden">NEXT</button>
+
+  <div id="reader" class="hidden">
+    <button id="reader-back" class="back">← BACK TO TOPICS</button>
+    <div class="label sec-label" id="reader-course"></div>
+    <h2 id="reader-topic"></h2>
+    <div class="tabs">
+      <button id="rd-tab-lesson" class="active">LESSON</button>
+      <button id="rd-tab-notes">MY NOTES</button>
+    </div>
+
+    <div id="rd-lesson">
+      <p class="small" id="rd-status"></p>
+      <div id="rd-lesson-body"></div>
+      <button class="primary" id="rd-generate">WRITE A LESSON</button>
+      <p class="small hidden" id="rd-caution">Written by AI from the web and its own knowledge. Check it against your lecture notes.</p>
+    </div>
+
+    <div id="rd-notes" class="hidden">
+      <textarea id="rd-notes-text" rows="12" placeholder="Type or paste your notes for this topic. They save by themselves on this phone."></textarea>
+      <p class="small" id="rd-notes-count">0 / 12000 characters</p>
+      <div class="rd-row">
+        <button class="mini" id="rd-file">ADD FROM .TXT FILE</button>
+        <button class="mini" id="rd-fill">FILL THE GAPS WITH AI</button>
+      </div>
+      <input type="file" id="rd-file-input" accept=".txt,.md,text/plain" class="hidden">
+    </div>
+
+    <div class="label sec-label">PRACTISE THIS TOPIC</div>
+    <div class="rd-actions">
+      <button class="primary" id="rd-quiz">QUIZ ME ON THIS</button>
+      <button class="mini" id="rd-quiz-notes">QUIZ FROM MY NOTES</button>
+      <button class="mini" id="rd-tutor">ASK TUTOR</button>
+      <button class="mini" id="rd-simpler">EXPLAIN SIMPLER</button>
+    </div>
+  </div>
+
+  <div id="cbt" class="hidden">
+    <div id="cbt-exam">
+      <div class="cbt-top">
+        <div class="cbt-title" id="cbt-title"></div>
+        <div class="cbt-timer" id="cbt-timer">00:00</div>
+      </div>
+      <div class="cbt-sub">
+        <span id="cbt-count">Question 1 of 1</span>
+        <span><span id="cbt-more" class="cbt-more hidden">loading more questions...</span><button id="cbt-resume" class="mini hidden">LOAD MORE</button></span>
+      </div>
+      <p id="cbt-note" class="cbt-note hidden"></p>
+      <div class="cbt-question" id="cbt-question"></div>
+      <div id="cbt-options"></div>
+      <div class="cbt-controls">
+        <button id="cbt-prev">◀ PREV</button>
+        <button id="cbt-flag">⚑ FLAG</button>
+        <button id="cbt-next">NEXT ▶</button>
+      </div>
+      <div class="label sec-label">QUESTIONS</div>
+      <div id="cbt-palette"></div>
+      <div class="cbt-legend"><span class="lg done">answered</span><span class="lg flag">flagged</span><span class="lg">not answered</span></div>
+      <div class="cbt-actions">
+        <button id="cbt-exit" class="back">EXIT</button>
+        <button id="cbt-submit" class="primary">SUBMIT</button>
+      </div>
+    </div>
+
+    <div id="cbt-result" class="hidden">
+      <div class="label">RESULT</div>
+      <div class="cbt-score" id="cr-score">0%</div>
+      <p class="small" id="cr-line"></p>
+      <div class="cbt-stats">
+        <div><b id="cr-right">0</b><span>CORRECT</span></div>
+        <div><b id="cr-wrong">0</b><span>WRONG</span></div>
+        <div><b id="cr-skip">0</b><span>SKIPPED</span></div>
+        <div><b id="cr-time">0:00</b><span>TIME</span></div>
+      </div>
+      <div class="label sec-label">SPEED AND ACCURACY</div>
+      <p class="small" id="cr-insight"></p>
+      <div id="cr-breakdown"></div>
+      <button class="mini hidden" id="cr-study">READ UP</button>
+      <div class="label sec-label">REVIEW</div>
+      <div class="tabs">
+        <button id="cr-tab-wrong" class="active">REVIEW MISTAKES</button>
+        <button id="cr-tab-all">ALL ANSWERS</button>
+      </div>
+      <div id="cr-review"></div>
+      <button class="primary" id="cr-again">NEW QUIZ</button>
+      <button class="back" id="cr-close">← BACK TO STUDY</button>
+    </div>
   </div>
 </section>
 <section id="planner" class="screen">
@@ -177,6 +291,10 @@
     <div class="row"><span>Average quiz score</span><span id="p-avg">–</span></div>
   </div>
   <button id="reset-progress" class="back">RESET PROGRESS</button>
+  <button id="backup-export" class="mini">EXPORT BACKUP</button>
+<button id="backup-import" class="mini">IMPORT BACKUP</button>
+<input type="file" id="backup-file" accept="application/json,.json" hidden>
+<p class="small" id="backup-msg"></p>
 </section>
 
   <nav>
@@ -185,10 +303,11 @@
     <button data-screen="study">STUDY</button>
     <button data-screen="planner">PLANNER</button>
     <button data-screen="profile">PROFILE</button>
- 
+  </nav>
+
   <script src="data.js"></script>
-<script src="questions.js"></script>
-<script src="app.js"></script>
-<script src="theme.js"></script>
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+  <script src="theme.js"></script>
 </body>
 </html>

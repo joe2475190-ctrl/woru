@@ -312,3 +312,48 @@ nav button.active, nav button:nth-child(n).active { color: var(--accent); box-sh
 .modes .mode:nth-child(n), .chat-input .quick button:nth-child(n) { background: none; border: 0; border-radius: 10px; text-align: left; padding: 10px 12px; font-size: 14px; letter-spacing: 0; color: var(--text); white-space: normal; }
 .modes .mode:hover:not(:disabled), .chat-input .quick button:hover:not(:disabled) { background: var(--card); }
 .modes .mode.active:nth-child(n) { background: var(--accent); color: var(--onaccent); }
+/* ---------- Study: AI quiz maker ---------- */
+#gen-card .tabs { margin-top: 0; max-width: none; }
+#gen-card select, #gen-notes { margin-top: 10px; }
+#gen-notes { width: 100%; box-sizing: border-box; min-height: 130px; resize: vertical; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font: inherit; font-size: 16px; padding: 12px 14px; }
+#gen-status { min-height: 1.2em; }
+#saved-label { margin-top: 24px; }
+/* ===== AI thinking dots ===== */
+.dots { display: inline-flex; gap: 5px; align-items: center; vertical-align: middle; }
+.dots i {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent, #34d399);
+  opacity: .25;
+  animation: dotpulse 1.2s infinite ease-in-out;
+}
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+.think-label { margin-left: 10px; font-size: .72rem; letter-spacing: .14em; opacity: .6; }
+@keyframes dotpulse {
+  0%, 80%, 100% { opacity: .25; transform: scale(.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dots i { animation: none; opacity: .6; }
+}
+/* ===== quiz animations ===== */
+.opt.pop { animation: optpop .28s ease-out; }
+@keyframes optpop {
+  0%   { transform: scale(.97); box-shadow: 0 0 0 0 rgba(52,211,153,.55); }
+  60%  { transform: scale(1.015); box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+}
+.rev { animation: revin .35s ease-out both; }
+@keyframes revin {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rev.bad .rev-tag { animation: tagshake .4s ease-out .3s both; }
+@keyframes tagshake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opt.pop, .rev, .rev.bad .rev-tag { animation: none; }
+}
