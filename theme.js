@@ -111,4 +111,51 @@
     document.addEventListener("click", closeMenus);
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenus(); });
   }
+    // 5. Colour picker on the Profile screen
+  const paletteNames = ["auto", "emerald", "sky", "amber", "rose", "violet"];
+  const paletteLabels = { auto: "Picture colours", emerald: "Emerald", sky: "Sky", amber: "Amber", rose: "Rose", violet: "Violet" };
+  let palette = "auto";
+  try { palette = localStorage.getItem("studycore-palette") || "auto"; } catch (e) {}
+  if (paletteNames.indexOf(palette) === -1) palette = "auto";
+  root.dataset.palette = palette;
+
+  const profileScreen = document.getElementById("profile");
+  if (profileScreen) {
+    const card = document.createElement("div");
+    card.className = "card";
+    const lab = document.createElement("div");
+    lab.className = "label";
+    lab.textContent = "COLOURS";
+    const row = document.createElement("div");
+    row.className = "swatches";
+    const note = document.createElement("p");
+    note.className = "small";
+    card.appendChild(lab);
+    card.appendChild(row);
+    card.appendChild(note);
+
+    function markPalette() {
+      row.querySelectorAll(".swatch").forEach(function (b) {
+        b.classList.toggle("on", b.dataset.p === root.dataset.palette);
+      });
+      note.textContent = paletteLabels[root.dataset.palette] || "";
+    }
+    paletteNames.forEach(function (n) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "swatch";
+      b.dataset.p = n;
+      b.setAttribute("aria-label", paletteLabels[n]);
+      b.addEventListener("click", function () {
+        root.dataset.palette = n;
+        try { localStorage.setItem("studycore-palette", n); } catch (e) {}
+        markPalette();
+      });
+      row.appendChild(b);
+    });
+    markPalette();
+
+    const heading = profileScreen.querySelector("h1");
+    if (heading) heading.after(card); else profileScreen.prepend(card);
+  }
 })();

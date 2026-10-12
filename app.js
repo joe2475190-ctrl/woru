@@ -1472,7 +1472,8 @@ function recordSession(ms) {
   const minutes = Math.floor(ms / 60000);
   if (minutes < 1) return;
   progress.sessions.push({
-    date: dateKey(new Date()),
+        date: dateKey(new Date()),
+    hour: new Date().getHours(),
     minutes: minutes,
     courseId: sessionCourseObj ? sessionCourseObj.id : "",
     courseName: liveSubject.textContent,
@@ -1526,7 +1527,7 @@ function renderProfile() {
 
   const days = activeDays();
   const streak = calcStreak(days);
-  streakEl.textContent = streak + " DAY STREAK" + (streak > 0 ? " 🔥" : "");
+    streakEl.innerHTML = streak + " DAY STREAK" + (streak > 0 ? ' <span class="flame">🔥</span>' : "");
 
   const week = document.getElementById("p-week");
   week.innerHTML = "";
@@ -1553,6 +1554,7 @@ function renderProfile() {
   document.getElementById("p-sessions").textContent = progress.sessions.length;
   document.getElementById("p-questions").textContent = answered;
   document.getElementById("p-avg").textContent = answered > 0 ? Math.round((correct / answered) * 100) + "%" : "–";
+  renderBadges();
 }
 
 const resetButton = document.getElementById("reset-progress");
@@ -1652,10 +1654,12 @@ function renderHome()
     if (weekKeys[s.date]) byCourse[s.courseName] = (byCourse[s.courseName] || 0) + s.minutes;
   });
 
-  const streak = calcStreak(activeDays());
-  homeText("h-streak", streak > 0
-    ? "🔥 " + streak + " day streak"
-    : "Study for a minute or finish a quiz to start a streak.");
+    const streak = calcStreak(activeDays());
+  const homeStreak = document.getElementById("h-streak");
+  if (homeStreak) {
+    if (streak > 0) homeStreak.innerHTML = '<span class="flame">🔥</span> ' + streak + " day streak";
+    else homeStreak.textContent = "Study for a minute or finish a quiz to start a streak.";
+  }
   renderNext();
 
   fill.style.width = Math.min(100, Math.round((todayMin / dailyTargetMinutes) * 100)) + "%";
@@ -2132,7 +2136,71 @@ function loadExam() {
 function localInputValue(d) {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
+// ===== EXAM COUNTDOWN: compact flip cards =====
+// (var with no starting value on purpose: renderExam also runs once at startup)
+var gateTimer, gateTarget, gateParts;
 
+function stopGate() {
+  if (gateTimer) { clearInterval(gateTimer); gateTimer = null; }
+}
+
+function buildGate(box) {
+  box.innerHTML = "";
+  gateParts = {};
+  const row = document.createElement("div");
+  row.className = "gate";
+  [["d", "DAYS"], ["h", "HRS"], ["m", "MIN"], ["s", "SEC"]].forEach(function (pair) {
+    const card = document.createElement("div");
+    card.className = "gate-cell";
+    const num = document.createElement("b");
+    num.textContent = "00";
+    const lab = document.createElement("span");
+    lab.textContent = pair[1];
+    card.appendChild(num);
+    card.appendChild(lab);
+    row.appendChild(card);
+    gateParts[pair[0]] = num;
+  });
+  const ms = document.createElement("div");
+  ms.className = "gate-ms";
+  ms.textContent = ".000";
+  box.appendChild(row);
+  box.appendChild(ms);
+  gateParts.ms = ms;
+}
+
+// Flips a card to a new number: the card folds edge-on, the number changes, then it folds back.
+function flipTo(num, text) {
+  if (num.dataset.v === text) return;
+  const first = num.dataset.v === undefined;
+  num.dataset.v = text;
+  if (first) { num.textContent = text; return; }
+  const card = num.parentNode;
+  card.classList.remove("flip");
+  void card.offsetWidth; // lets the animation restart
+  card.classList.add("flip");
+  setTimeout(function () { num.textContent = text; }, 150);
+}
+
+function gateTick() {
+  if (!gateParts) return;
+  const home = document.getElementById("home");
+  if (document.hidden || !home || !home.classList.contains("active")) return; // save battery when you can't see it
+  const left = gateTarget - Date.now();
+  if (left <= 0) { stopGate(); renderExam(); return; }
+  flipTo(gateParts.d, pad(Math.floor(left / 86400000)));
+  flipTo(gateParts.h, pad(Math.floor((left % 86400000) / 3600000)));
+  flipTo(gateParts.m, pad(Math.floor((left % 3600000) / 60000)));
+  flipTo(gateParts.s, pad(Math.floor((left % 60000) / 1000)));
+  gateParts.ms.textContent = "." + String(Math.floor(left % 1000)).padStart(3, "0");
+}
+
+function startGate(exam) {
+  stopGate();
+  gateTarget = exam.getTime();
+  gateTick();
+  gateTimer = setInterval(gateTick, 50);
+}
 function renderExam() {
   const count = document.getElementById("h-exam-count");
   if (!count) return;
@@ -2140,14 +2208,17 @@ function renderExam() {
   const dateLine = document.getElementById("h-exam-date");
   const edit = document.getElementById("h-exam-edit");
   const exam = loadExam();
+  stopGate();
   edit.textContent = exam ? "CHANGE DATE" : "SET DATE";
   if (!exam) {
+    count.classList.remove("soon");
     label.textContent = "SEMESTER EXAMS";
     count.textContent = "Set your exam date";
     dateLine.textContent = "Then you will see exactly how many days, hours and minutes are left.";
     return;
   }
   const ms = exam.getTime() - Date.now();
+  count.classList.toggle("soon", ms < 7 * 86400000);
   const when = exam.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) +
     " · " + pad(exam.getHours()) + ":" + pad(exam.getMinutes());
   if (ms > 0) {
@@ -2155,7 +2226,8 @@ function renderExam() {
     const hours = Math.floor((ms % 86400000) / 3600000);
     const minutes = Math.floor((ms % 3600000) / 60000);
     label.textContent = "EXAMS START IN";
-    count.textContent = days + "d " + pad(hours) + "h " + pad(minutes) + "m";
+        buildGate(count);
+    startGate(exam);
     dateLine.textContent = when;
   } else if (ms > -30 * 86400000) {
     label.textContent = "SEMESTER EXAMS";
@@ -2558,4 +2630,237 @@ renderExam();
     reader.readAsText(f);
     fileInput.value = "";
   });
+})();
+// ===== BADGES =====
+var badgeBox; // no starting value on purpose: renderProfile also runs at startup
+
+function badgeDefs() {
+  const answers = progress.answers || [];
+  const quizzes = progress.quizzes || [];
+  const sessions = progress.sessions || [];
+  const streak = calcStreak(activeDays());
+  let studyMinutes = 0;
+  sessions.forEach(function (s) { studyMinutes += s.minutes; });
+  const mathAnswers = answers.filter(function (a) { return a.course === "get209"; });
+  const mathRight = mathAnswers.filter(function (a) { return a.correct; }).length;
+  const champ = quizzes.some(function (q) { return q.total >= 10 && q.score / q.total >= 0.9; });
+  const owl = sessions.some(function (s) { return typeof s.hour === "number" && (s.hour >= 22 || s.hour < 5); });
+  return [
+    { id: "first", icon: "🚀", name: "First Step", hint: "Finish your first study session", got: sessions.length >= 1 },
+    { id: "owl", icon: "🦉", name: "Night Owl", hint: "Finish a study session between 10pm and 5am", got: owl },
+    { id: "streak3", icon: "🔥", name: "3-Day Streak", hint: "Study 3 days in a row", got: streak >= 3 },
+    { id: "streak10", icon: "⚡", name: "10-Day Streak", hint: "Study 10 days in a row", got: streak >= 10 },
+    { id: "math", icon: "📐", name: "Math Master", hint: "80% right on 30+ Engineering Mathematics answers", got: mathAnswers.length >= 30 && mathRight / mathAnswers.length >= 0.8 },
+    { id: "champ", icon: "🏆", name: "CBT Champion", hint: "Score 90%+ on a quiz of 10 or more questions", got: champ },
+    { id: "century", icon: "💯", name: "Century", hint: "Answer 100 CBT questions", got: answers.length >= 100 },
+    { id: "ten", icon: "⏱️", name: "10 Hour Club", hint: "Study for 10 hours in total", got: studyMinutes >= 600 }
+  ];
+}
+
+function badgeToast(text) {
+  const t = document.createElement("div");
+  t.className = "bdg-toast";
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 3600);
+}
+
+function renderBadges() {
+  try {
+    const anchor = document.getElementById("reset-progress");
+    if (!anchor) return;
+    if (!badgeBox || !badgeBox.isConnected) {
+      badgeBox = document.createElement("div");
+      badgeBox.className = "card";
+      anchor.before(badgeBox);
+    }
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem("studycore-badges")) || {}; } catch (e) {}
+    if (typeof store !== "object") store = {};
+
+    const defs = badgeDefs();
+    const fresh = [];
+    defs.forEach(function (b) {
+      if (b.got && !store[b.id]) { store[b.id] = dateKey(new Date()); fresh.push(b.id); }
+    });
+    if (fresh.length > 0) {
+      try { localStorage.setItem("studycore-badges", JSON.stringify(store)); } catch (e) {}
+      const first = defs.find(function (b) { return b.id === fresh[0]; });
+      badgeToast(fresh.length === 1 ? first.icon + " Badge unlocked: " + first.name : "🎉 " + fresh.length + " badges unlocked!");
+    }
+
+    badgeBox.innerHTML = "";
+    const earned = defs.filter(function (b) { return store[b.id]; }).length;
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = "BADGES · " + earned + " / " + defs.length;
+    badgeBox.appendChild(label);
+
+    const grid = document.createElement("div");
+    grid.className = "bdg-grid";
+    defs.forEach(function (b) {
+      const tile = document.createElement("div");
+      tile.className = "bdg" + (store[b.id] ? " got" : "") + (fresh.indexOf(b.id) !== -1 ? " new" : "");
+      const ic = document.createElement("div");
+      ic.className = "bdg-ic";
+      ic.textContent = b.icon;
+      const nm = document.createElement("div");
+      nm.className = "bdg-nm";
+      nm.textContent = b.name;
+      const ht = document.createElement("div");
+      ht.className = "bdg-ht";
+      ht.textContent = store[b.id] ? "Earned " + store[b.id] : b.hint;
+      tile.appendChild(ic);
+      tile.appendChild(nm);
+      tile.appendChild(ht);
+      grid.appendChild(tile);
+    });
+    badgeBox.appendChild(grid);
+  } catch (e) {}
+}
+
+renderBadges();
+// ===== AMBIENT SOUNDS (made inside the app, no sound files needed) =====
+var ambCtx, ambPlaying, ambGain, ambStopper, ambKind;
+
+function ambStop() {
+  if (ambStopper) { try { ambStopper(); } catch (e) {} ambStopper = null; }
+  ambKind = null;
+}
+
+function ambVolumeValue() {
+  const slider = document.getElementById("amb-volume");
+  return slider ? Number(slider.value) / 100 : 0.4;
+}
+
+function ambStart(kind) {
+  ambStop();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return false;
+  if (!ambCtx) ambCtx = new AC();
+  if (ambCtx.state === "suspended") ambCtx.resume();
+
+  // 4 seconds of random noise, played in a loop
+  const rate = ambCtx.sampleRate;
+  const buf = ambCtx.createBuffer(1, rate * 4, rate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = ambCtx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+
+  const made = [src];
+  let out = src;
+  function chain(node) { out.connect(node); out = node; made.push(node); return node; }
+  function filter(type, freq) {
+    const f = ambCtx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    return f;
+  }
+
+  const trim = { rain: 0.9, ocean: 2.2, brown: 2.2, white: 0.25 };
+  let lfo = null;
+  if (kind === "rain") {
+    chain(filter("highpass", 600));
+    chain(filter("lowpass", 7000));
+  } else if (kind === "brown") {
+    chain(filter("lowpass", 380));
+  } else if (kind === "ocean") {
+    chain(filter("lowpass", 700));
+    const wave = chain(ambCtx.createGain());
+    wave.gain.value = 0.5;
+    lfo = ambCtx.createOscillator();
+    lfo.frequency.value = 0.11; // one wave roughly every 9 seconds
+    const depth = ambCtx.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth);
+    depth.connect(wave.gain);
+    lfo.start();
+    made.push(lfo, depth);
+  }
+
+  ambGain = ambCtx.createGain();
+  ambGain.gain.value = ambVolumeValue() * (trim[kind] || 0.5);
+  out.connect(ambGain);
+  ambGain.connect(ambCtx.destination);
+  src.start();
+
+  const myGain = ambGain;
+  ambStopper = function () {
+    try { src.stop(); } catch (e) {}
+    if (lfo) { try { lfo.stop(); } catch (e) {} }
+    made.forEach(function (n) { try { n.disconnect(); } catch (e) {} });
+    try { myGain.disconnect(); } catch (e) {}
+  };
+  ambKind = kind;
+  return true;
+}
+
+(function addAmbientCard() {
+  if (document.getElementById("amb-card")) return;
+  const host = document.getElementById("planner-session");
+  if (!host) return;
+
+  const card = document.createElement("div");
+  card.id = "amb-card";
+  card.className = "card";
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = "AMBIENT SOUND";
+  card.appendChild(label);
+
+  const row = document.createElement("div");
+  row.className = "tabs";
+  row.style.flexWrap = "wrap";
+  row.style.marginTop = "0";
+  const names = [["rain", "🌧 Rain"], ["ocean", "🌊 Ocean"], ["brown", "Brown"], ["white", "White"]];
+  const note = document.createElement("p");
+  note.className = "small";
+  note.textContent = "Tap a sound to play it. Tap it again to stop.";
+
+  function mark() {
+    row.querySelectorAll("button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.k === ambKind);
+    });
+  }
+
+  names.forEach(function (pair) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.k = pair[0];
+    b.textContent = pair[1];
+    b.addEventListener("click", function () {
+      if (ambKind === pair[0]) {
+        ambStop();
+        note.textContent = "Stopped.";
+      } else if (ambStart(pair[0])) {
+        note.textContent = "Playing: " + pair[1].replace(/^\S+\s/, "") + ".";
+      } else {
+        note.textContent = "Your browser can't play sounds here.";
+      }
+      mark();
+    });
+    row.appendChild(b);
+  });
+  card.appendChild(row);
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.id = "amb-volume";
+  slider.min = "0";
+  slider.max = "100";
+  slider.value = "40";
+  slider.style.width = "100%";
+  slider.style.marginTop = "14px";
+  slider.style.accentColor = "var(--accent)";
+  slider.addEventListener("input", function () {
+    if (ambGain && ambKind) {
+      const trim = { rain: 0.9, ocean: 2.2, brown: 2.2, white: 0.25 };
+      ambGain.gain.value = ambVolumeValue() * (trim[ambKind] || 0.5);
+    }
+  });
+  card.appendChild(slider);
+  card.appendChild(note);
+  host.appendChild(card);
 })();
