@@ -1,3 +1,39 @@
+// ---------- Access code: keeps strangers from using your AI ----------
+// The code is typed once and kept in this browser only (key "sc-access", not part of backups).
+(function guardAI() {
+  var realFetch = window.fetch.bind(window);
+  var KEY = "sc-access";
+  function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function store(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  function withCode(init, code) {
+    var copy = Object.assign({}, init);
+    try {
+      var b = JSON.parse(init.body);
+      b.code = code;
+      copy.body = JSON.stringify(b);
+    } catch (e) {}
+    return copy;
+  }
+  window.fetch = function (url, init) {
+    if (typeof url !== "string" || url.indexOf("/functions/v1/") === -1 || !init || typeof init.body !== "string") {
+      return realFetch(url, init);
+    }
+    function go(code, retried) {
+      return realFetch(url, withCode(init, code)).then(function (res) {
+        if (res.status !== 401 || retried) return res;
+        return res.clone().json().catch(function () { return {}; }).then(function (d) {
+          if (d.auth !== true) return res;
+          var entered = window.prompt("Enter your STUDY//CORE access code:");
+          if (!entered || !entered.trim()) return res;
+          store(entered.trim());
+          return go(entered.trim(), true);
+        });
+      });
+    }
+    return go(saved(), false);
+  };
+})();
+
 const buttons = document.querySelectorAll("nav button");
 const screens = document.querySelectorAll(".screen");
 
@@ -7,132 +43,7 @@ buttons.forEach(function (button) {
     buttons.forEach(function (b) { b.classList.remove("active"); });
     document.getElementById(button.dataset.screen).classList.add("active");
     button.classList.add("active");
-  });// Your courses and topics. To change anything, edit the names below and save.
-// Pattern for one course:
-//   { id: "short-id", name: "CODE · Title", topics: ["Topic 1", "Topic 2"] }
-// Put a comma after each course except the last one.
-// The topics are a first draft: compare them with your lecturer's course outline and edit.
-
-const courses = [
-  {
-    id: "get201",
-    name: "GET201 · Applied Electricity I",
-    topics: [
-      "Electric Charge and Electric Field",
-      "Current, Voltage and Resistance",
-      "Ohm's Law",
-      "Resistors in Series and Parallel",
-      "Kirchhoff's Laws",
-      "Power and Electrical Energy",
-      "Network Theorems (Superposition, Thevenin, Norton)",
-      "Capacitors and Inductors",
-      "Magnetism and Electromagnetic Induction",
-      "AC Fundamentals (RMS, Phasors)",
-      "Single-Phase AC Circuits (RLC)",
-      "Power in AC Circuits"
-    ]
-  },
-  {
-    id: "get203",
-    name: "GET203 · Engineering Graphics & Solid Modelling II",
-    topics: [
-      "Orthographic Projection",
-      "Isometric and Oblique Drawing",
-      "Sectional Views",
-      "Auxiliary Views",
-      "Dimensioning and Tolerancing",
-      "AutoCAD Basics (Commands, Layers, Object Snaps)",
-      "2D Drawing and Editing in AutoCAD",
-      "3D Solid Modelling (Extrude, Revolve)",
-      "Assembly Drawings",
-      "Intersection and Development of Surfaces"
-    ]
-  },
-  {
-    id: "get205",
-    name: "GET205 · Fundamental Fluid Mechanics",
-    topics: [
-      "Fluid Properties (Density, Viscosity, Surface Tension)",
-      "Fluid Statics and Pressure",
-      "Manometers",
-      "Forces on Submerged Surfaces",
-      "Buoyancy and Stability",
-      "Fluid Kinematics",
-      "Continuity Equation",
-      "Bernoulli's Equation",
-      "Momentum Equation",
-      "Flow in Pipes (Laminar, Turbulent, Losses)",
-      "Dimensional Analysis"
-    ]
-  },
-  {
-    id: "get207",
-    name: "GET207 · Applied Mechanics",
-    topics: [
-      "Force Systems and Resultants",
-      "Equilibrium of Particles",
-      "Free Body Diagrams",
-      "Equilibrium of Rigid Bodies",
-      "Friction",
-      "Centroids and Moments of Inertia",
-      "Trusses and Frames",
-      "Kinematics of Particles",
-      "Kinetics (Newton's Laws)",
-      "Work, Energy and Power",
-      "Impulse and Momentum"
-    ]
-  },
-  {
-    id: "get209",
-    name: "GET209 · Engineering Mathematics I",
-    topics: [
-      "Functions and Graphs",
-      "Limits and Continuity",
-      "Differentiation",
-      "Applications of Differentiation",
-      "Integration",
-      "Applications of Integration",
-      "Complex Numbers",
-      "Matrices and Determinants",
-      "Vectors",
-      "Sequences and Series",
-      "Permutations and Combinations",
-      "First-Order Differential Equations"
-    ]
-  },
-  {
-    id: "get211",
-    name: "GET211 · Computing & Software Engineering",
-    topics: [
-      "Introduction to Computing and Computer Systems",
-      "Algorithms and Flowcharts",
-      "Programming Fundamentals (Variables, Data Types)",
-      "Control Structures (Decisions and Loops)",
-      "Functions",
-      "Lists and Arrays",
-      "Debugging and Testing",
-      "Software Development Life Cycle",
-      "Software Design and Documentation",
-      "Version Control Basics"
-    ]
-  },
-  {
-    id: "ent211",
-    name: "ENT211 · Entrepreneurship and Innovation",
-    topics: [
-      "Meaning and Types of Entrepreneurship",
-      "Opportunity Identification",
-      "Business Idea Generation",
-      "Market Research",
-      "Writing a Business Plan",
-      "Financing a Business",
-      "Business Registration and Law",
-      "Marketing Basics",
-      "Creativity and Innovation",
-      "Entrepreneurial Ethics"
-    ]
-  }
-];
+  });
 });
 const hour = new Date().getHours();
 let greeting = "Good evening";
@@ -195,7 +106,7 @@ function addMessage(text, who) {
   return div;
 }
 
-function showAIError(message, text) {
+function showAIError(message, text, image) {
   const div = document.createElement("div");
   div.className = "msg ai error";
   const label = document.createElement("span");
@@ -205,7 +116,7 @@ function showAIError(message, text) {
   retry.textContent = "RETRY";
   retry.addEventListener("click", function () {
     div.remove();
-    askAI(text);
+    askAI(text, image);
   });
   div.appendChild(label);
   div.appendChild(retry);
@@ -288,27 +199,25 @@ function renderReply(box, reply) {
   });
 }
 
-async function askAI(text) {
+async function askAI(text, image) {
   if (aiBusy) return;
   if (!navigator.onLine) {
-    showAIError("AI requires an internet connection.", text);
+    showAIError("AI requires an internet connection.", text, image);
     return;
   }
 
   aiBusy = true;
   sendButton.disabled = true;
   updateQuick();
-    const thinking = addMessage("", "ai");
-  thinking.classList.add("thinking");
-  thinking.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span class="think-label">THINKING</span>';
+  const thinking = addMessage(image ? (image.mime === "application/pdf" ? "Reading your PDF..." : "Reading your photo...") : "Thinking...", "ai");
   const controller = new AbortController();
-  const timer = setTimeout(function () { controller.abort(); }, 30000);
+  const timer = setTimeout(function () { controller.abort(); }, image ? (image.mime === "application/pdf" ? 80000 : 50000) : 30000);
 
   try {
     const res = await fetch(AI_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ mode: chatMode, messages: chatHistory.concat([{ role: "user", text: text }]) }),
+      body: JSON.stringify({ mode: chatMode, messages: chatHistory.concat([{ role: "user", text: text }]), image: image || undefined }),
       signal: controller.signal
     });
     const data = await res.json().catch(function () { return {}; });
@@ -322,7 +231,8 @@ async function askAI(text) {
       meta.textContent = data.model + " · " + (data.mode || chatMode).toUpperCase();
       thinking.appendChild(meta);
     }
-    chatHistory.push({ role: "user", text: text });
+    addFollowups(thinking, data.reply);
+    chatHistory.push({ role: "user", text: image ? (image.mime === "application/pdf" ? "[PDF] " : "[Photo] ") + text : text });
     chatHistory.push({ role: "model", text: data.reply });
     if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
   } catch (err) {
@@ -333,7 +243,7 @@ async function askAI(text) {
     } else if (err instanceof TypeError) {
       message = "Could not reach the AI. Check your internet.";
     }
-    showAIError(message, text);
+    showAIError(message, text, image);
   } finally {
     clearTimeout(timer);
     aiBusy = false;
@@ -343,12 +253,27 @@ async function askAI(text) {
 }
 
 function sendQuestion() {
-  const text = questionInput.value.trim();
-  if (text === "" || aiBusy) return;
-  addMessage(text, "user");
+  let text = questionInput.value.trim();
+  const image = photoData;
+  if ((text === "" && !image) || aiBusy) return;
+  const isPdf = !!image && image.mime === "application/pdf";
+  if (text === "") text = isPdf ? "Read this PDF. Tell me what it is and the key points." : "Read this image and solve or explain it step by step.";
+  const bubble = addMessage(text, "user");
+  if (image && isPdf) {
+    const tag = document.createElement("div");
+    tag.className = "msg-doc";
+    tag.textContent = "📄 " + (image.name || "PDF");
+    bubble.insertBefore(tag, bubble.firstChild);
+  } else if (image) {
+    const pic = document.createElement("img");
+    pic.className = "msg-photo";
+    pic.src = "data:" + image.mime + ";base64," + image.data;
+    bubble.insertBefore(pic, bubble.firstChild);
+  }
   questionInput.value = "";
+  clearPhoto();
   simplerLevel = 1;
-  askAI(text);
+  askAI(text, image);
 }
 
 const quickButtons = document.querySelectorAll(".quick button");
@@ -869,7 +794,6 @@ function renderReview() {
 
     const card = document.createElement("div");
     card.className = "rev " + status;
-        card.className = "rev " + status;
     card.style.animationDelay = Math.min(i * 70, 700) + "ms";
     const head = document.createElement("div");
     head.className = "rev-head";
@@ -2863,4 +2787,308 @@ function ambStart(kind) {
   card.appendChild(slider);
   card.appendChild(note);
   host.appendChild(card);
+})();
+
+// ---------- AI camera ----------
+var photoData = null;
+var photoChip, photoFile;
+
+function clearPhoto() {
+  photoData = null;
+  if (photoChip) photoChip.style.display = "none";
+  if (photoFile) photoFile.value = "";
+}
+
+function shrinkPhoto(file, done, fail) {
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function () {
+    function make(maxSide, quality) {
+      var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      var c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", quality).split(",")[1];
+    }
+    var data = make(2000, 0.88);
+    if (data.length > 2400000) data = make(1600, 0.8);
+    if (data.length > 2400000) data = make(1280, 0.7);
+    URL.revokeObjectURL(url);
+    if (data.length > 2400000) { fail("That photo is too large. Try a closer crop."); return; }
+    done({ mime: "image/jpeg", data: data });
+  };
+  img.onerror = function () {
+    URL.revokeObjectURL(url);
+    fail("Could not read that image. Use a JPG or PNG.");
+  };
+  img.src = url;
+}
+
+(function addAttachments() {
+  var row = sendButton.parentNode;
+  var menu = document.querySelector(".quick");
+
+  // Styles for the photo chip, the photo in your bubble, and the follow-up buttons
+  var css = document.createElement("style");
+  css.textContent = [
+    ".chat-input .photo-chip { position: absolute; left: 8px; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 8px; margin: 0; padding: 5px 8px 5px 5px; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; font-size: 13px; color: var(--text); box-shadow: 0 6px 20px rgba(0,0,0,.2); }",
+    ".chat-input .photo-chip img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }",
+    ".chat-input .photo-chip button { width: auto; height: auto; padding: 0 4px; background: none; border: 0; border-radius: 0; color: var(--text); font-size: 15px; cursor: pointer; }",
+    ".msg-photo { display: block; max-width: 220px; max-height: 220px; border-radius: 8px; margin-bottom: 6px; }",
+    ".modes .mode:disabled { display: none; }",
+    ".chat-input .quick button[data-quick] { display: none; }",
+    ".msg-doc { display: inline-block; margin-bottom: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; }",
+    ".followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }",
+    ".followups button { width: auto; padding: 6px 12px; font-size: 12px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--text); cursor: pointer; }",
+    ".followups button:hover { border-color: var(--accent); }",
+    ".followups button.top { background: var(--accent); color: var(--onaccent); border-color: var(--accent); font-weight: 700; }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  photoFile = document.createElement("input");
+  photoFile.type = "file";
+  photoFile.accept = "image/*";
+  photoFile.style.display = "none";
+
+  var textFile = document.createElement("input");
+  textFile.type = "file";
+  textFile.accept = ".pdf,application/pdf,.docx,.txt,.md,.csv,.json,.js,.py,.c,.cpp,.java,.html,.css,.m,text/plain";
+  textFile.style.display = "none";
+
+  photoChip = document.createElement("div");
+  photoChip.className = "photo-chip";
+  photoChip.style.display = "none";
+  var thumb = document.createElement("img");
+  var label = document.createElement("span");
+  label.textContent = "Photo ready";
+  var x = document.createElement("button");
+  x.type = "button";
+  x.textContent = "✕";
+  photoChip.appendChild(thumb);
+  photoChip.appendChild(label);
+  photoChip.appendChild(x);
+
+  row.appendChild(photoFile);
+  row.appendChild(textFile);
+  row.appendChild(photoChip);
+
+  function menuItem(text, input) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = text;
+    b.addEventListener("click", function () { input.click(); });
+    return b;
+  }
+  if (menu) {
+    menu.insertBefore(menuItem("Add a file", textFile), menu.firstChild);
+    menu.insertBefore(menuItem("Add a photo", photoFile), menu.firstChild);
+  }
+
+  x.addEventListener("click", clearPhoto);
+  photoFile.addEventListener("change", function () {
+    var file = photoFile.files && photoFile.files[0];
+    if (!file) return;
+    thumb.style.display = "";
+    label.textContent = "Preparing...";
+    photoChip.style.display = "flex";
+    shrinkPhoto(file, function (p) {
+      photoData = p;
+      thumb.src = "data:" + p.mime + ";base64," + p.data;
+      label.textContent = "Photo ready";
+    }, function (msg) {
+      clearPhoto();
+      addMessage(msg, "ai");
+    });
+  });
+
+  function readPdf(f) {
+    if (f.size > 4400000) {
+      addMessage("That PDF is too big. Use one under about 4 MB, or a few pages.", "ai");
+      textFile.value = "";
+      return;
+    }
+    thumb.style.display = "none";
+    label.textContent = "Preparing PDF...";
+    photoChip.style.display = "flex";
+    var r = new FileReader();
+    r.onload = function () {
+      var data = String(r.result).split(",")[1] || "";
+      if (!data) { clearPhoto(); addMessage("Could not read that PDF.", "ai"); return; }
+      photoData = { mime: "application/pdf", data: data, name: f.name };
+      label.textContent = "📄 " + (f.name.length > 24 ? f.name.slice(0, 21) + "..." : f.name);
+      textFile.value = "";
+    };
+    r.onerror = function () { clearPhoto(); addMessage("Could not read that PDF.", "ai"); };
+    r.readAsDataURL(f);
+  }
+
+  function loadMammoth(done, fail) {
+    if (window.mammoth) { done(); return; }
+    var s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js";
+    s.onload = done;
+    s.onerror = fail;
+    document.head.appendChild(s);
+  }
+
+  function readDocx(f) {
+    if (f.size > 3000000) {
+      addMessage("That Word file is too big. Use one under 3 MB.", "ai");
+      textFile.value = "";
+      return;
+    }
+    if (!navigator.onLine) {
+      addMessage("Reading a Word file needs an internet connection.", "ai");
+      textFile.value = "";
+      return;
+    }
+    addMessage("Reading " + f.name + "...", "ai");
+    loadMammoth(function () {
+      var r = new FileReader();
+      r.onload = function () {
+        window.mammoth.extractRawText({ arrayBuffer: r.result }).then(function (res) {
+          var s = (res.value || "").trim();
+          if (!s) {
+            addMessage("I found no text in that Word file. If it only holds pictures, send them as photos.", "ai");
+            textFile.value = "";
+            return;
+          }
+          var cut = s.length > 10000;
+          if (cut) s = s.slice(0, 10000) + "\n[...cut]";
+          var old = questionInput.value.trim();
+          questionInput.value = (old ? old + "\n\n" : "Summarise this document and explain the key points:\n") + "File: " + f.name + "\n" + s;
+          questionInput.dispatchEvent(new Event("input"));
+          questionInput.focus();
+          textFile.value = "";
+          if (cut) addMessage("That file is long, so only the first part was added.", "ai");
+        }).catch(function () {
+          addMessage("Could not read that Word file. Is it a real .docx?", "ai");
+          textFile.value = "";
+        });
+      };
+      r.onerror = function () { addMessage("Could not read that file.", "ai"); textFile.value = ""; };
+      r.readAsArrayBuffer(f);
+    }, function () {
+      addMessage("Could not load the Word reader. Check your internet and try again.", "ai");
+      textFile.value = "";
+    });
+  }
+
+  textFile.addEventListener("change", function () {
+    var f = textFile.files && textFile.files[0];
+    if (!f) return;
+    if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+      readPdf(f);
+      return;
+    }
+    if (/\.docx$/i.test(f.name)) {
+      readDocx(f);
+      return;
+    }
+    if (/\.doc$/i.test(f.name)) {
+      addMessage("Old .doc files are not supported. In Word, choose Save As and pick .docx, then try again.", "ai");
+      textFile.value = "";
+      return;
+    }
+    if (f.size > 200000) {
+      addMessage("That file is too big. Use one under 200 KB.", "ai");
+      textFile.value = "";
+      return;
+    }
+    var r = new FileReader();
+    r.onload = function () {
+      var s = String(r.result);
+      if (s.length > 8000) s = s.slice(0, 8000) + "\n[...cut]";
+      var old = questionInput.value.trim();
+      questionInput.value = (old ? old + "\n\n" : "Explain this file:\n") + "File: " + f.name + "\n" + s;
+      questionInput.dispatchEvent(new Event("input"));
+      questionInput.focus();
+      textFile.value = "";
+    };
+    r.readAsText(f);
+  });
+})();
+
+// ---------- Follow-up buttons under each AI reply ----------
+function addFollowups(box, reply) {
+  document.querySelectorAll(".followups").forEach(function (e) { e.remove(); });
+  var names = { simpler: "Explain simpler", hint: "Give me a hint", quiz: "Quiz me", example: "Show an example", steps: "Step by step" };
+  var s = { simpler: 1, hint: 0, quiz: 1, example: 1, steps: 1 };
+  if (reply.indexOf("```") !== -1) { s.steps += 3; s.example += 1; }
+  if (/\\\(|\\\[|\$\$/.test(reply)) { s.example += 2; s.quiz += 2; }
+  if (reply.length > 900) s.simpler += 3;
+  if (/\?\s*$/.test(reply.trim())) s.hint += 4;
+  if (reply.indexOf("What I can see") === 0) s.steps += 3;
+  if (/step\s*1/i.test(reply)) s.quiz += 1;
+  var order = Object.keys(s).sort(function (a, b) { return s[b] - s[a]; });
+
+  var bar = document.createElement("div");
+  bar.className = "followups";
+  order.forEach(function (kind, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = names[kind];
+    if (i === 0) b.className = "top";
+    b.addEventListener("click", function () { sendQuick(kind); });
+    bar.appendChild(b);
+  });
+  box.appendChild(bar);
+}
+
+// ---------- Tidy the saved question bank (Profile screen) ----------
+(function addTidyCard() {
+  var host = document.getElementById("profile");
+  if (!host || document.getElementById("tidy-card")) return;
+
+  var card = document.createElement("div");
+  card.id = "tidy-card";
+  card.className = "card";
+  var label = document.createElement("div");
+  label.className = "label";
+  label.textContent = "QUESTION BANK";
+  var info = document.createElement("p");
+  info.className = "small";
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "mini";
+  btn.textContent = "TIDY OLD QUESTIONS";
+  var msg = document.createElement("p");
+  msg.className = "small";
+  card.appendChild(label);
+  card.appendChild(info);
+  card.appendChild(btn);
+  card.appendChild(msg);
+  host.appendChild(card);
+
+  function looksPlain(q) {
+    var all = [q.question].concat(q.options, [q.explanation || ""]).join(" ");
+    if (all.indexOf("\\(") !== -1 || all.indexOf("\\[") !== -1 || all.indexOf("$$") !== -1) return false;
+    return /sqrt\s*\(|√|\^|\*\*|\bpi\b|\d\s*\/\s*\d|\b[a-z]\s*_\s*\d|\bomega\b|\btheta\b/i.test(all);
+  }
+
+  function refresh() {
+    var n = aiBank.filter(looksPlain).length;
+    info.textContent = aiBank.length + " saved AI questions. " + n + " look like old ones with plain-text maths (sqrt, ^ and the like).";
+    btn.disabled = n === 0;
+  }
+
+  btn.addEventListener("click", function () {
+    var before = aiBank.length;
+    var n = aiBank.filter(looksPlain).length;
+    if (n === 0) return;
+    if (!confirm("Remove " + n + " old question" + (n === 1 ? "" : "s") + "? Fresh ones with proper maths are made when you practise.")) return;
+    aiBank = aiBank.filter(function (q) { return !looksPlain(q); });
+    saveAiBank();
+    msg.textContent = "Removed " + (before - aiBank.length) + ". Kept " + aiBank.length + ".";
+    refresh();
+    try { renderLaunch(); } catch (e) {}
+  });
+
+  var nav = document.querySelector('nav button[data-screen="profile"]');
+  if (nav) nav.addEventListener("click", refresh);
+  refresh();
 })();
