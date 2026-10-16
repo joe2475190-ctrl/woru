@@ -23,7 +23,7 @@
         if (res.status !== 401 || retried) return res;
         return res.clone().json().catch(function () { return {}; }).then(function (d) {
           if (d.auth !== true) return res;
-          var entered = window.prompt("Enter your STUDY//CORE access code:");
+          var entered = window.prompt("Enter your WORU access code:");
           if (!entered || !entered.trim()) return res;
           store(entered.trim());
           return go(entered.trim(), true);
