@@ -1,5 +1,14 @@
 // ---------- Access code: keeps strangers from using your AI ----------
 // The code is typed once and kept in this browser only (key "sc-access", not part of backups).
+function scGet(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
+function scProfile() {
+  try {
+    var p = JSON.parse(scGet("studycore-profile"));
+    if (p && typeof p === "object") return { name: String(p.name || ""), field: String(p.field || "") };
+  } catch (e) {}
+  return { name: "", field: "" };
+}
+
 (function guardAI() {
   var realFetch = window.fetch.bind(window);
   var KEY = "sc-access";
@@ -7,6 +16,12 @@
   function store(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
   function withCode(init, code) {
     var copy = Object.assign({}, init);
+    var headers = Object.assign({}, init.headers || {});
+    var own = scGet("sc-userkey");
+    var field = scProfile().field;
+    if (own) headers["x-user-key"] = own;
+    if (field) headers["x-student"] = encodeURIComponent(field);
+    copy.headers = headers;
     try {
       var b = JSON.parse(init.body);
       b.code = code;
@@ -23,6 +38,9 @@
         if (res.status !== 401 || retried) return res;
         return res.clone().json().catch(function () { return {}; }).then(function (d) {
           if (d.auth !== true) return res;
+          if (window.WORU_FRIEND) {
+            return new Response(JSON.stringify({ error: "Add your Gemini key first: Profile, then Settings." }), { status: 401, headers: { "Content-Type": "application/json" } });
+          }
           var entered = window.prompt("Enter your WORU access code:");
           if (!entered || !entered.trim()) return res;
           store(entered.trim());
@@ -45,6 +63,19 @@ buttons.forEach(function (button) {
     button.classList.add("active");
   });
 });
+(function loadMyCourses() {
+  try {
+    var saved = JSON.parse(scGet("studycore-courses"));
+    var good = Array.isArray(saved) && saved.length > 0 && saved.every(function (c) {
+      return c && typeof c.id === "string" && typeof c.name === "string" && Array.isArray(c.topics);
+    });
+    if (good) {
+      courses.length = 0;
+      saved.forEach(function (c) { courses.push(c); });
+    }
+  } catch (e) {}
+})();
+
 const hour = new Date().getHours();
 let greeting = "Good evening";
 if (hour < 12) {
@@ -52,7 +83,8 @@ if (hour < 12) {
 } else if (hour < 17) {
   greeting = "Good afternoon";
 }
-document.getElementById("greeting").textContent = greeting + ", Joseph";
+const whoName = scProfile().name || (window.WORU_FRIEND ? "" : "Joseph");
+document.getElementById("greeting").textContent = greeting + (whoName ? ", " + whoName : "");
 const messagesBox = document.getElementById("messages");
 const questionInput = document.getElementById("question");
 const sendButton = document.getElementById("send");
@@ -66,9 +98,29 @@ const modeNotes = {
   general: "Everyday questions, explanations and revision.",
   engineering: "Step-by-step calculations with units and checks.",
   autocad: "Click-by-click AutoCAD guidance. It guides you and does not do the assignment for you.",
-  coding: "Programming help: hints first, full code when you ask."
+  coding: "Programming help: hints first, full code when you ask.",
+  writing: "Essays, news and scripts: coaching and feedback that makes you a better writer."
 };
 const modeNote = document.getElementById("mode-note");
+if (window.WORU_FRIEND) {
+  document.documentElement.classList.add("friend");
+  ["autocad", "coding", "engineering"].forEach(function (m) {
+    var b = document.querySelector('.mode[data-mode="' + m + '"]');
+    if (b) b.remove();
+  });
+  var modesBox = document.querySelector(".modes");
+  if (modesBox) {
+    var wb = document.createElement("button");
+    wb.type = "button";
+    wb.className = "mode";
+    wb.dataset.mode = "writing";
+    wb.textContent = "Writing";
+    var gen = modesBox.querySelector('.mode[data-mode="general"]');
+    if (gen) gen.after(wb); else modesBox.prepend(wb);
+    // theme.js renames the mode buttons while the page loads; this puts the right word back
+    window.addEventListener("load", function () { wb.textContent = "Writing"; });
+  }
+}
 const modeButtons = document.querySelectorAll(".mode[data-mode]");
 
 function setMode(name) {
@@ -100,7 +152,19 @@ function renderMath(el) {
 function addMessage(text, who) {
   const div = document.createElement("div");
   div.className = "msg " + who;
-  div.textContent = text;
+  if (who === "ai" && /^(Thinking|Reading your (photo|PDF))\.\.\.$/.test(text)) {
+    // waiting message: three pulsing dots and a small label
+    const dots = document.createElement("span");
+    dots.className = "dots";
+    dots.innerHTML = "<i></i><i></i><i></i>";
+    const label = document.createElement("span");
+    label.className = "think-label";
+    label.textContent = /^Thinking/.test(text) ? "THINKING" : text.replace("...", "").toUpperCase();
+    div.appendChild(dots);
+    div.appendChild(label);
+  } else {
+    div.textContent = text;
+  }
   messagesBox.appendChild(div);
   div.scrollIntoView({ behavior: "smooth", block: "end" });
   return div;
@@ -270,6 +334,7 @@ function sendQuestion() {
     pic.src = "data:" + image.mime + ";base64," + image.data;
     bubble.insertBefore(pic, bubble.firstChild);
   }
+  if (image && window.noteAttachment) window.noteAttachment(isPdf ? "📄 " + (image.name || "PDF") : "📷 Photo");
   questionInput.value = "";
   clearPhoto();
   simplerLevel = 1;
@@ -1369,6 +1434,7 @@ const courseModes = {
   get211: "coding",
   ent211: "general"
 };
+courses.forEach(function (c) { if (c.mode) courseModes[c.id] = c.mode; });
 
 const dayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -2791,12 +2857,13 @@ function ambStart(kind) {
 
 // ---------- AI camera ----------
 var photoData = null;
-var photoChip, photoFile;
+var photoChip, photoFile, camFile;
 
 function clearPhoto() {
   photoData = null;
   if (photoChip) photoChip.style.display = "none";
   if (photoFile) photoFile.value = "";
+  if (camFile) camFile.value = "";
 }
 
 function shrinkPhoto(file, done, fail) {
@@ -2840,6 +2907,7 @@ function shrinkPhoto(file, done, fail) {
     ".chat-input .photo-chip button { width: auto; height: auto; padding: 0 4px; background: none; border: 0; border-radius: 0; color: var(--text); font-size: 15px; cursor: pointer; }",
     ".msg-photo { display: block; max-width: 220px; max-height: 220px; border-radius: 8px; margin-bottom: 6px; }",
     ".modes .mode:disabled { display: none; }",
+    "html.friend .set-course .sc-mode { display: none; }",
     ".chat-input .quick button[data-quick] { display: none; }",
     ".msg-doc { display: inline-block; margin-bottom: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; }",
     ".followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }",
@@ -2853,6 +2921,12 @@ function shrinkPhoto(file, done, fail) {
   photoFile.type = "file";
   photoFile.accept = "image/*";
   photoFile.style.display = "none";
+
+  camFile = document.createElement("input");
+  camFile.type = "file";
+  camFile.accept = "image/*";
+  camFile.setAttribute("capture", "environment"); // on a phone this opens the camera
+  camFile.style.display = "none";
 
   var textFile = document.createElement("input");
   textFile.type = "file";
@@ -2873,6 +2947,7 @@ function shrinkPhoto(file, done, fail) {
   photoChip.appendChild(x);
 
   row.appendChild(photoFile);
+  row.appendChild(camFile);
   row.appendChild(textFile);
   row.appendChild(photoChip);
 
@@ -2885,12 +2960,13 @@ function shrinkPhoto(file, done, fail) {
   }
   if (menu) {
     menu.insertBefore(menuItem("Add a file", textFile), menu.firstChild);
-    menu.insertBefore(menuItem("Add a photo", photoFile), menu.firstChild);
+    menu.insertBefore(menuItem("Choose a photo", photoFile), menu.firstChild);
+    menu.insertBefore(menuItem("Take a photo", camFile), menu.firstChild);
   }
 
   x.addEventListener("click", clearPhoto);
-  photoFile.addEventListener("change", function () {
-    var file = photoFile.files && photoFile.files[0];
+  function onPhoto(input) {
+    var file = input.files && input.files[0];
     if (!file) return;
     thumb.style.display = "";
     label.textContent = "Preparing...";
@@ -2903,7 +2979,9 @@ function shrinkPhoto(file, done, fail) {
       clearPhoto();
       addMessage(msg, "ai");
     });
-  });
+  }
+  photoFile.addEventListener("change", function () { onPhoto(photoFile); });
+  camFile.addEventListener("change", function () { onPhoto(camFile); });
 
   function readPdf(f) {
     if (f.size > 4400000) {
@@ -3091,4 +3169,1120 @@ function addFollowups(box, reply) {
   var nav = document.querySelector('nav button[data-screen="profile"]');
   if (nav) nav.addEventListener("click", refresh);
   refresh();
+})();
+
+
+// ---------- Your details, Gemini key and courses (Profile screen, and first-run welcome) ----------
+(function setupSettings() {
+  var PROFILE_KEY = "studycore-profile";
+  var COURSES_KEY = "studycore-courses";
+  var KEY_KEY = "sc-userkey"; // not saved in backups on purpose
+  var MODES = [["general", "General"], ["engineering", "Engineering (calculations)"], ["autocad", "AutoCAD"], ["coding", "Coding"]];
+  if (window.WORU_FRIEND) MODES = MODES.slice(0, 1);
+
+  var css = document.createElement("style");
+  css.textContent = [
+    ".set-card input, .set-card select, .set-card textarea, #welcome input, #welcome select, #welcome textarea { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 11px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; font-size: 15px; }",
+    ".set-card textarea, #welcome textarea { min-height: 84px; resize: vertical; }",
+    ".set-course { padding: 10px; margin: 8px 0; border: 1px solid var(--line); border-radius: 12px; }",
+    ".set-course .row2 { display: flex; gap: 8px; }",
+    ".set-course .row2 input:first-child { flex: 0 0 38%; }",
+    ".set-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }",
+    ".set-msg { min-height: 1.2em; }",
+    "#welcome { position: fixed; inset: 0; z-index: 200; overflow: auto; background: var(--bg); padding: 28px 16px 70px; }",
+    "#welcome .inner { max-width: 560px; margin: 0 auto; }",
+    "#welcome h1 { margin: 0 0 6px; }",
+    "#welcome .primary { width: 100%; margin-top: 10px; }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+  function slug(s) {
+    var v = String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+    return v || "c" + Date.now();
+  }
+  function codeOf(c) { return c ? String(c.name).split(" · ")[0] : ""; }
+  function titleOf(c) { return c ? String(c.name).split(" · ").slice(1).join(" · ") : ""; }
+
+  function courseRow(c) {
+    var row = el("div", "set-course");
+    row.dataset.id = c && c.id ? c.id : "";
+    var top = el("div", "row2");
+    var code = el("input", "sc-code"); code.placeholder = "Code, e.g. PHA201"; code.value = codeOf(c);
+    var title = el("input", "sc-title"); title.placeholder = "Course title"; title.value = titleOf(c);
+    top.appendChild(code); top.appendChild(title);
+    var mode = el("select", "sc-mode");
+    MODES.forEach(function (m) {
+      var o = el("option", "", m[1]); o.value = m[0]; mode.appendChild(o);
+    });
+    mode.value = (c && (c.mode || courseModes[c.id])) || "general";
+    var topics = el("textarea", "sc-topics");
+    topics.placeholder = "Topics, one per line";
+    topics.value = c && Array.isArray(c.topics) ? c.topics.join("\n") : "";
+    var del = el("button", "mini", "REMOVE COURSE"); del.type = "button";
+    del.addEventListener("click", function () { row.remove(); });
+    row.appendChild(top); row.appendChild(mode); row.appendChild(topics); row.appendChild(del);
+    return row;
+  }
+
+  function collectCourses(list) {
+    var out = [];
+    var used = {};
+    list.querySelectorAll(".set-course").forEach(function (row) {
+      var code = row.querySelector(".sc-code").value.trim();
+      var title = row.querySelector(".sc-title").value.trim();
+      if (!code && !title) return;
+      var topics = row.querySelector(".sc-topics").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+      var base = row.dataset.id || slug(code || title);
+      var id = base;
+      var n = 2;
+      while (used[id]) { id = base + n; n++; }
+      used[id] = true;
+      out.push({ id: id, name: title ? code + " · " + title : code, topics: topics.length ? topics : ["General revision"], mode: row.querySelector(".sc-mode").value });
+    });
+    return out;
+  }
+
+  // Builds the whole form into "box". "after" runs when the person taps Save.
+  function buildForm(box, firstRun) {
+    var p = scProfile();
+
+    box.appendChild(el("div", "label", "YOU"));
+    var name = el("input"); name.placeholder = "Your first name"; name.value = p.name; name.autocomplete = "off";
+    var field = el("input"); field.placeholder = "What you study, e.g. Pharmacy, 300 level"; field.value = p.field;
+    box.appendChild(name); box.appendChild(field);
+
+    box.appendChild(el("div", "label", "GEMINI KEY (FREE)"));
+    var keyNote = el("p", "small", "The AI needs your own free Google Gemini key. It stays on this device and is only sent with your questions.");
+    var link = el("a", "", "Get a free key: aistudio.google.com/apikey");
+    link.href = "https://aistudio.google.com/apikey"; link.target = "_blank"; link.rel = "noopener";
+    link.style.display = "block"; link.style.margin = "4px 0 8px";
+    var key = el("input"); key.type = "password"; key.autocomplete = "off"; key.spellcheck = false;
+    key.placeholder = scGet(KEY_KEY) ? "Key saved (ends " + scGet(KEY_KEY).slice(-4) + "). Paste a new one to replace it." : "Paste your key here";
+    var keyMsg = el("p", "small set-msg");
+    var keyBtns = el("div", "set-btns");
+    var testBtn = el("button", "mini", "SAVE AND TEST KEY"); testBtn.type = "button";
+    var rmBtn = el("button", "mini", "REMOVE KEY"); rmBtn.type = "button";
+    keyBtns.appendChild(testBtn); keyBtns.appendChild(rmBtn);
+    box.appendChild(keyNote); box.appendChild(link); box.appendChild(key); box.appendChild(keyBtns); box.appendChild(keyMsg);
+
+    function saveKeyIfTyped() {
+      var v = key.value.trim();
+      if (v === "") return true;
+      if (v.length < 20 || /\s/.test(v)) { keyMsg.textContent = "That does not look like a full key. Copy the whole key."; return false; }
+      try { localStorage.setItem(KEY_KEY, v); } catch (e) {}
+      key.value = "";
+      key.placeholder = "Key saved (ends " + v.slice(-4) + "). Paste a new one to replace it.";
+      return true;
+    }
+    testBtn.addEventListener("click", function () {
+      if (!saveKeyIfTyped()) return;
+      if (!scGet(KEY_KEY)) { keyMsg.textContent = "Paste your key first."; return; }
+      keyMsg.textContent = "Testing...";
+      fetch(AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ mode: "general", messages: [{ role: "user", text: "Reply with the single word OK." }] })
+      }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) { keyMsg.textContent = res.ok && res.d.reply ? "Your key works." : "That did not work: " + (res.d.error || "unknown error"); })
+        .catch(function () { keyMsg.textContent = "Could not reach the AI. Check your internet."; });
+    });
+    rmBtn.addEventListener("click", function () {
+      try { localStorage.removeItem(KEY_KEY); } catch (e) {}
+      key.placeholder = "Paste your key here";
+      keyMsg.textContent = "Key removed from this device.";
+    });
+
+    box.appendChild(el("div", "label", "YOUR COURSES"));
+    box.appendChild(el("p", "small", "Add each course and its topics, one topic per line. The mode shapes how the tutor helps."));
+    var list = el("div");
+    var current = courses.length > 0 ? courses : [];
+    current.forEach(function (c) { list.appendChild(courseRow(c)); });
+    if (current.length === 0) list.appendChild(courseRow(null));
+    var addBtn = el("button", "mini", "+ ADD COURSE"); addBtn.type = "button";
+    addBtn.addEventListener("click", function () { list.appendChild(courseRow(null)); });
+    box.appendChild(list); box.appendChild(addBtn);
+
+    var msg = el("p", "small set-msg");
+    var save = el("button", "primary", firstRun ? "SAVE AND START" : "SAVE");
+    save.type = "button";
+    box.appendChild(save); box.appendChild(msg);
+
+    save.addEventListener("click", function () {
+      var n = name.value.trim();
+      if (firstRun && n === "") { msg.textContent = "Please type your name."; return; }
+      if (!saveKeyIfTyped()) return;
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: n, field: field.value.trim() })); } catch (e) {}
+      var list2 = collectCourses(list);
+      try {
+        if (list2.length > 0) localStorage.setItem(COURSES_KEY, JSON.stringify(list2));
+        else localStorage.removeItem(COURSES_KEY);
+      } catch (e) {}
+      msg.textContent = "Saved. Reloading...";
+      setTimeout(function () { location.reload(); }, 300);
+    });
+  }
+
+  // Profile screen: label with your name, and a Settings card near the top
+  var host = document.getElementById("profile");
+  var prof = scProfile();
+  if (host) {
+    var lab = host.querySelector(".label");
+    if (lab && prof.name) lab.textContent = prof.name.toUpperCase() + (prof.field ? " · " + prof.field.toUpperCase() : "");
+    else if (lab && window.WORU_FRIEND) lab.textContent = "YOUR PROFILE";
+    if (!document.getElementById("settings-card")) {
+      var card = el("div", "card set-card");
+      card.id = "settings-card";
+      var details = document.createElement("details");
+      var sum = document.createElement("summary");
+      sum.textContent = "SETTINGS: name, Gemini key, courses";
+      sum.style.cursor = "pointer"; sum.style.fontWeight = "700";
+      var inner = el("div");
+      details.appendChild(sum); details.appendChild(inner);
+      card.appendChild(details);
+      buildForm(inner, false);
+      var h1 = host.querySelector("h1");
+      if (h1) h1.after(card); else host.appendChild(card);
+    }
+  }
+
+  // First run for a shared copy: a welcome screen, until a name is saved
+  if (window.WORU_FRIEND && !prof.name) {
+    var w = el("div");
+    w.id = "welcome";
+    var inner2 = el("div", "inner");
+    inner2.appendChild(el("h1", "", "Welcome to " + ((window.BRAND && window.BRAND.name) || "WORU")));
+    inner2.appendChild(el("p", "small", "Set up once. You can change everything later in Profile, Settings."));
+    buildForm(inner2, true);
+    w.appendChild(inner2);
+    document.body.appendChild(w);
+  }
+})();
+
+
+// ---------- Saved chats: your tutor conversations are kept, and can be reopened and searched ----------
+(function savedChats() {
+  var KEY = "studycore-chats"; // part of backups too
+  var MAX_CHATS = 40;
+  var MAX_LOG = 80;
+  var currentId = null;
+  var chatLog = [];
+  var restoring = false;
+  var chats = load();
+
+  function valid(c) { return c && typeof c.id === "string" && Array.isArray(c.log) && Array.isArray(c.history); }
+  function load() {
+    try {
+      var a = JSON.parse(localStorage.getItem(KEY));
+      return Array.isArray(a) ? a.filter(valid) : [];
+    } catch (e) { return []; }
+  }
+  function persist() {
+    for (;;) {
+      try { localStorage.setItem(KEY, JSON.stringify(chats)); return; }
+      catch (e) { if (chats.length <= 1) return; chats.pop(); } // storage full: drop the oldest chat
+    }
+  }
+  function save() {
+    if (chatLog.length === 0) return;
+    var firstUser = chatLog.filter(function (l) { return l.who === "user"; })[0];
+    var title = (firstUser ? firstUser.text : "Chat").replace(/\s+/g, " ").trim().slice(0, 60) || "Chat";
+    if (!currentId) currentId = "c" + Date.now();
+    var rec = chats.filter(function (c) { return c.id === currentId; })[0];
+    if (!rec) { rec = { id: currentId }; chats.unshift(rec); }
+    rec.title = title;
+    rec.mode = chatMode;
+    rec.updated = Date.now();
+    rec.history = chatHistory.slice(-20);
+    rec.log = chatLog.slice(-MAX_LOG);
+    chats.sort(function (a, b) { return b.updated - a.updated; });
+    if (chats.length > MAX_CHATS) chats.length = MAX_CHATS;
+    persist();
+  }
+
+  // Keep a copy of what is shown: what you send, and what the tutor answers
+  var baseAdd = addMessage;
+  addMessage = function (text, who) {
+    var d = baseAdd(text, who);
+    if (who === "user" && !restoring) chatLog.push({ who: "user", text: String(text) });
+    return d;
+  };
+  var baseRender = renderReply;
+  renderReply = function (box, reply) {
+    baseRender(box, reply);
+    if (!restoring) {
+      chatLog.push({ who: "ai", text: reply });
+      setTimeout(save, 0); // after askAI has added the exchange to chatHistory
+    }
+  };
+  window.noteAttachment = function (label) {
+    for (var i = chatLog.length - 1; i >= 0; i--) {
+      if (chatLog[i].who === "user") { chatLog[i].attach = label; return; }
+    }
+  };
+
+  function show(rec) {
+    restoring = true;
+    currentId = rec.id;
+    chatLog = rec.log.slice();
+    chatHistory = rec.history.slice();
+    messagesBox.innerHTML = "";
+    var lastAi = null;
+    var lastText = "";
+    chatLog.forEach(function (l) {
+      var d = document.createElement("div");
+      d.className = "msg " + (l.who === "user" ? "user" : "ai");
+      messagesBox.appendChild(d);
+      if (l.who === "user") {
+        if (l.attach) {
+          var tag = document.createElement("div");
+          tag.className = "msg-doc";
+          tag.textContent = l.attach;
+          d.appendChild(tag);
+        }
+        d.appendChild(document.createTextNode(l.text));
+      } else {
+        baseRender(d, l.text);
+        if (window.woruAddListen) window.woruAddListen(d, l.text);
+        lastAi = d;
+        lastText = l.text;
+      }
+    });
+    if (lastAi && chatLog[chatLog.length - 1].who === "ai") addFollowups(lastAi, lastText);
+    if (rec.mode && modeNotes[rec.mode]) setMode(rec.mode);
+    simplerLevel = 1;
+    updateQuick();
+    restoring = false;
+    if (messagesBox.lastElementChild) messagesBox.lastElementChild.scrollIntoView({ block: "end" });
+  }
+
+  // Controls above the conversation
+  var css = document.createElement("style");
+  css.textContent = [
+    ".chat-tools { display: flex; gap: 8px; margin: 6px 0 10px; }",
+    ".chat-tools button { width: auto; padding: 6px 12px; font-size: 12px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--text); cursor: pointer; }",
+    ".chat-tools button:hover { border-color: var(--accent); }",
+    "#chat-history { display: none; margin-bottom: 14px; }",
+    "#chat-history.open { display: block; }",
+    "#chat-history input { width: 100%; box-sizing: border-box; padding: 10px 12px; margin-bottom: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; font-size: 15px; }",
+    ".ch-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin: 6px 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }",
+    ".ch-item:hover { border-color: var(--accent); }",
+    ".ch-item .info { flex: 1; min-width: 0; }",
+    ".ch-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }",
+    ".ch-item .d { font-size: 11px; opacity: .65; margin-top: 2px; }",
+    ".ch-item .del { width: auto; padding: 0 6px; background: none; border: 0; color: var(--text); cursor: pointer; font-size: 15px; }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var bar = document.createElement("div");
+  bar.className = "chat-tools";
+  var newBtn = document.createElement("button");
+  newBtn.type = "button";
+  newBtn.textContent = "+ New chat";
+  var histBtn = document.createElement("button");
+  histBtn.type = "button";
+  histBtn.textContent = "History";
+  bar.appendChild(newBtn);
+  bar.appendChild(histBtn);
+
+  var panel = document.createElement("div");
+  panel.id = "chat-history";
+  var search = document.createElement("input");
+  search.type = "search";
+  search.placeholder = "Search your chats";
+  var list = document.createElement("div");
+  panel.appendChild(search);
+  panel.appendChild(list);
+
+  messagesBox.before(bar);
+  messagesBox.before(panel);
+
+  function when(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+  function renderList() {
+    var q = search.value.trim().toLowerCase();
+    list.innerHTML = "";
+    var shown = chats.filter(function (c) {
+      if (!q) return true;
+      if (c.title.toLowerCase().indexOf(q) !== -1) return true;
+      return c.log.some(function (l) { return l.text.toLowerCase().indexOf(q) !== -1; });
+    });
+    if (shown.length === 0) {
+      var p = document.createElement("p");
+      p.className = "small";
+      p.textContent = chats.length === 0 ? "No saved chats yet. Ask the tutor something and it will appear here." : "No chat matches that.";
+      list.appendChild(p);
+      return;
+    }
+    shown.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "ch-item";
+      var info = document.createElement("div");
+      info.className = "info";
+      var t = document.createElement("div");
+      t.className = "t";
+      t.textContent = c.title;
+      var d = document.createElement("div");
+      d.className = "d";
+      d.textContent = when(c.updated) + " · " + (c.mode || "general").toUpperCase();
+      info.appendChild(t);
+      info.appendChild(d);
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "del";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", "Delete chat");
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!confirm("Delete this chat?")) return;
+        chats = chats.filter(function (x) { return x.id !== c.id; });
+        persist();
+        if (c.id === currentId) newChat();
+        renderList();
+      });
+      row.addEventListener("click", function () {
+        if (aiBusy) { alert("Wait for the answer to finish first."); return; }
+        show(c);
+        panel.classList.remove("open");
+      });
+      row.appendChild(info);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+  }
+  function newChat() {
+    if (aiBusy) { alert("Wait for the answer to finish first."); return; }
+    currentId = null;
+    chatLog = [];
+    chatHistory = [];
+    messagesBox.innerHTML = "";
+    simplerLevel = 1;
+    if (typeof clearPhoto === "function") clearPhoto();
+    updateQuick();
+    panel.classList.remove("open");
+  }
+  newBtn.addEventListener("click", newChat);
+  histBtn.addEventListener("click", function () {
+    var open = !panel.classList.contains("open");
+    panel.classList.toggle("open", open);
+    if (open) { search.value = ""; renderList(); }
+  });
+  search.addEventListener("input", renderList);
+
+  // Reopen the last conversation when the app starts
+  if (chats.length > 0) show(chats[0]);
+  window.woruRedrawChat = function () {
+    var r = chats.filter(function (c) { return c.id === currentId; })[0];
+    if (r) show(r);
+  };
+})();
+
+// ===== REVISION PILE: wrong answers come back until they stick =====
+(function revisionPile() {
+  var KEY = "studycore-review";
+  var GAPS = [1, 2, 4, 7, 14]; // days to wait after each correct answer; a 6th correct answer graduates the card
+  var MAX_CARDS = 300;
+  var cards = load();
+  var added = 0;
+  var graduated = 0;
+
+  function load() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY));
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        Object.keys(saved).forEach(function (k) { if (!validQuestion(saved[k].q)) delete saved[k]; });
+        return saved;
+      }
+    } catch (e) {}
+    return {};
+  }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(cards)); } catch (e) {} }
+  function keyOf(q) { return q.course + "|" + q.topic + "|" + q.question; }
+  function plusDays(n) { var d = new Date(); d.setDate(d.getDate() + n); return dateKey(d); }
+  function dueList() {
+    var today = dateKey(new Date());
+    return Object.keys(cards).map(function (k) { return cards[k]; })
+      .filter(function (c) { return c.due <= today; })
+      .sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : a.box - b.box; });
+  }
+  function total() { return Object.keys(cards).length; }
+
+  // Every answer in any quiz passes through here.
+  var baseRecord = recordAnswer;
+  recordAnswer = function (q, correct, ms) {
+    baseRecord(q, correct, ms);
+    try {
+      if (!validQuestion(q)) return;
+      var k = keyOf(q);
+      if (!correct) {
+        if (!cards[k]) added++;
+        cards[k] = {
+          q: { course: q.course, topic: q.topic, subtopic: q.subtopic || "", question: q.question, options: q.options, answer: q.answer, explanation: q.explanation || "" },
+          box: 0, due: dateKey(new Date()), lapses: ((cards[k] && cards[k].lapses) || 0) + 1
+        };
+        var keys = Object.keys(cards);
+        if (keys.length > MAX_CARDS) {
+          keys.sort(function (a, b) { return cards[a].due < cards[b].due ? -1 : 1; });
+          delete cards[keys[keys.length - 1] === k ? keys[0] : keys[keys.length - 1]];
+        }
+      } else if (cards[k]) {
+        var c = cards[k];
+        if (c.box >= GAPS.length) { delete cards[k]; graduated++; }
+        else { c.due = plusDays(GAPS[c.box]); c.box++; }
+      }
+      persist();
+    } catch (e) {}
+  };
+
+  // Tell the student what happened to the pile when a quiz ends.
+  var baseResult = showCbtResult;
+  showCbtResult = function (auto) {
+    baseResult(auto);
+    var line = document.getElementById("cr-line");
+    if (line && (added || graduated)) {
+      var bits = [];
+      if (added) bits.push(added + " added to your revision pile");
+      if (graduated) bits.push(graduated + " mastered and cleared");
+      line.textContent += " " + bits.join(", ") + ".";
+    }
+    added = 0; graduated = 0;
+    renderCard();
+  };
+
+  // ----- the card on the Home screen -----
+  var card = null, title, sub, goBtn, allBtn;
+  function build() {
+    var weak = document.getElementById("h-weak");
+    if (!weak || !weak.parentNode) return;
+    card = document.createElement("div");
+    card.className = "card";
+    card.id = "h-review";
+    var label = document.createElement("div");
+    label.className = "label";
+    label.textContent = "REVISION PILE";
+    title = document.createElement("h2");
+    sub = document.createElement("p");
+    sub.className = "small";
+    goBtn = document.createElement("button");
+    goBtn.className = "primary";
+    allBtn = document.createElement("button");
+    allBtn.className = "mini";
+    allBtn.textContent = "PRACTISE THE WHOLE PILE ANYWAY";
+    card.appendChild(label); card.appendChild(title); card.appendChild(sub); card.appendChild(goBtn); card.appendChild(allBtn);
+    weak.parentNode.parentNode.insertBefore(card, weak.parentNode);
+    goBtn.addEventListener("click", function () { start(dueList()); });
+    allBtn.addEventListener("click", function () {
+      start(Object.keys(cards).map(function (k) { return cards[k]; }));
+    });
+  }
+
+  function nextDueText() {
+    var soonest = null;
+    Object.keys(cards).forEach(function (k) { if (!soonest || cards[k].due < soonest) soonest = cards[k].due; });
+    if (!soonest) return "";
+    var days = Math.round((new Date(soonest + "T00:00:00") - new Date(dateKey(new Date()) + "T00:00:00")) / 86400000);
+    return days <= 1 ? "Next ones are due tomorrow." : "Next ones are due in " + days + " days.";
+  }
+
+  function renderCard() {
+    if (!card) build();
+    if (!card) return;
+    var n = total();
+    var due = dueList().length;
+    if (n === 0) {
+      title.textContent = "Nothing to revise";
+      sub.textContent = "Questions you get wrong in a CBT quiz are saved here, and come back after 1, 2, 4, 7 and 14 days until you know them.";
+      goBtn.classList.add("hidden");
+      allBtn.classList.add("hidden");
+      return;
+    }
+    if (due > 0) {
+      title.textContent = due + " question" + (due === 1 ? "" : "s") + " to revise today";
+      sub.textContent = n + " in your pile in total. Get one right again and it moves further away. Miss it and it starts over.";
+      goBtn.textContent = "REVISE " + Math.min(due, 20) + " NOW";
+      goBtn.classList.remove("hidden");
+      allBtn.classList.toggle("hidden", n === due);
+    } else {
+      title.textContent = "All caught up";
+      sub.textContent = n + " in your pile. " + nextDueText();
+      goBtn.classList.add("hidden");
+      allBtn.classList.remove("hidden");
+    }
+  }
+
+  function start(list) {
+    if (list.length === 0) return;
+    var pick = list.slice(0, 20).map(function (c) { return c.q; });
+    showScreen("study");
+    startCbt(
+      { courseId: null, topic: null, label: "Revision pile", saved: true },
+      shuffle(pick),
+      { note: "Revision. Questions you got wrong before." }
+    );
+  }
+
+  window.revisionDue = function () { return dueList().length; };
+  window.revisionStart = function () { start(dueList()); };
+  var baseHome = renderHome;
+  renderHome = function () { baseHome.apply(this, arguments); renderCard(); };
+  renderCard();
+})();
+
+// ===== QUIZ FROM YOUR NOTES: paste, or add a photo / PDF / Word file =====
+(function notesQuiz() {
+  var home = document.getElementById("study-home");
+  var anchor = home && home.querySelector(".sec-label");
+  if (!home || !anchor) return;
+  var MAX = 12000;
+
+  var css = document.createElement("style");
+  css.textContent = [
+    "#nq-card textarea, #nq-card select, #nq-card input[type=text] { width: 100%; box-sizing: border-box; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; font-size: 15px; padding: 10px; margin: 6px 0; }",
+    "#nq-card textarea { min-height: 120px; resize: vertical; }",
+    "#nq-card .nq-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }",
+    "#nq-card .nq-count { font-size: 12px; opacity: .7; margin: 0 0 6px; }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var card = document.createElement("div");
+  card.className = "card";
+  card.id = "nq-card";
+  card.innerHTML =
+    '<div class="label">QUIZ FROM YOUR NOTES</div>' +
+    '<h2>Turn your notes into a quiz</h2>' +
+    '<p class="small">Questions come only from what you give it. Snap your notebook, add a PDF or Word file, or paste text.</p>' +
+    '<select id="nq-course"></select>' +
+    '<input type="text" id="nq-topic" placeholder="Topic name (for example: Ohm\'s law)" maxlength="80">' +
+    '<textarea id="nq-text" placeholder="Paste your notes here, or add them below."></textarea>' +
+    '<p class="nq-count" id="nq-count"></p>' +
+    '<div class="nq-row"><button class="mini" id="nq-photo">📷 PHOTO</button><button class="mini" id="nq-file">📄 PDF / WORD / TEXT</button><button class="mini" id="nq-clear">CLEAR</button></div>' +
+    '<p class="small" id="nq-status"></p>' +
+    '<button class="primary" id="nq-go">MAKE QUIZ FROM MY NOTES</button>' +
+    '<input type="file" id="nq-photo-in" accept="image/*" multiple hidden>' +
+    '<input type="file" id="nq-file-in" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain" multiple hidden>';
+  anchor.parentNode.insertBefore(card, anchor);
+
+  var sel = card.querySelector("#nq-course");
+  courses.forEach(function (c) {
+    var o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.name;
+    sel.appendChild(o);
+  });
+  var topic = card.querySelector("#nq-topic");
+  var text = card.querySelector("#nq-text");
+  var count = card.querySelector("#nq-count");
+  var status = card.querySelector("#nq-status");
+  var go = card.querySelector("#nq-go");
+  var busy = 0;
+
+  function say(t) { status.textContent = t; }
+  function refresh() {
+    var n = text.value.trim().length;
+    count.textContent = n === 0 ? "" : n + " of " + MAX + " characters" + (n < 80 ? " (add a little more)" : "");
+  }
+  text.addEventListener("input", refresh);
+
+  function add(chunk) {
+    var old = text.value.trim();
+    var merged = (old ? old + "\n\n" : "") + chunk.trim();
+    if (merged.length > MAX) { merged = merged.slice(0, MAX); say("That was a lot of text, so it was cut at " + MAX + " characters."); }
+    text.value = merged;
+    refresh();
+  }
+
+  // Photos and PDFs are read by the AI tutor and turned into plain text, which you can check and fix.
+  function transcribe(img, label) {
+    busy++;
+    say("Reading " + label + "...");
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, img.mime === "application/pdf" ? 80000 : 50000);
+    var ask = "Copy out ALL the text in this " + (img.mime === "application/pdf" ? "document" : "photo of notes") +
+      " as plain text, in reading order. Keep formulas, numbers and units exactly. Write maths as plain text such as V = IR. " +
+      "Do not explain, summarise or add anything. If part is unreadable, write [unclear] for it.";
+    return fetch(AI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ mode: "general", messages: [{ role: "user", text: ask }], image: img }),
+      signal: controller.signal
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (d) {
+        if (!res.ok || !d.reply) throw new Error(d.error || "The AI could not read that.");
+        add(d.reply);
+        say("Added " + label + ". Check the text, then make your quiz.");
+      });
+    }).catch(function (err) {
+      say(err.name === "AbortError" ? "Reading took too long. Try a closer, clearer photo." :
+        err instanceof TypeError ? "Could not reach the AI. Check your internet." : err.message);
+    }).then(function () { clearTimeout(timer); busy--; });
+  }
+
+  function loadMammothLib(ok, fail) {
+    if (window.mammoth) { ok(); return; }
+    var s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js";
+    s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  }
+
+  function handlePhoto(f) {
+    shrinkPhoto(f, function (p) { transcribe(p, "your photo"); }, function (m) { say(m); });
+  }
+  function handlePdf(f) {
+    if (f.size > 4400000) { say("That PDF is too big. Use one under about 4 MB, or a few pages."); return; }
+    var r = new FileReader();
+    r.onload = function () {
+      var data = String(r.result).split(",")[1] || "";
+      if (!data) { say("Could not read that PDF."); return; }
+      transcribe({ mime: "application/pdf", data: data, name: f.name }, f.name);
+    };
+    r.onerror = function () { say("Could not read that PDF."); };
+    r.readAsDataURL(f);
+  }
+  function handleDocx(f) {
+    if (f.size > 3000000) { say("That Word file is too big. Use one under 3 MB."); return; }
+    if (!navigator.onLine) { say("Reading a Word file needs internet."); return; }
+    say("Reading " + f.name + "...");
+    loadMammothLib(function () {
+      var r = new FileReader();
+      r.onload = function () {
+        window.mammoth.extractRawText({ arrayBuffer: r.result }).then(function (res) {
+          var s = (res.value || "").trim();
+          if (!s) { say("I found no text in that Word file. If it only holds pictures, add them as photos."); return; }
+          add(s); say("Added " + f.name + ".");
+        }).catch(function () { say("Could not read that Word file. Is it a real .docx?"); });
+      };
+      r.onerror = function () { say("Could not read that file."); };
+      r.readAsArrayBuffer(f);
+    }, function () { say("Could not load the Word reader. Check your internet."); });
+  }
+  function handleText(f) {
+    if (f.size > 200000) { say("That file is too big. Use one under 200 KB."); return; }
+    var r = new FileReader();
+    r.onload = function () { add(String(r.result)); say("Added " + f.name + "."); };
+    r.onerror = function () { say("Could not read that file."); };
+    r.readAsText(f);
+  }
+
+  var photoIn = card.querySelector("#nq-photo-in");
+  var fileIn = card.querySelector("#nq-file-in");
+  card.querySelector("#nq-photo").addEventListener("click", function () { photoIn.click(); });
+  card.querySelector("#nq-file").addEventListener("click", function () { fileIn.click(); });
+  photoIn.addEventListener("change", function () {
+    Array.prototype.slice.call(photoIn.files || [], 0, 4).forEach(handlePhoto);
+    photoIn.value = "";
+  });
+  fileIn.addEventListener("change", function () {
+    Array.prototype.slice.call(fileIn.files || [], 0, 3).forEach(function (f) {
+      if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") handlePdf(f);
+      else if (/\.docx$/i.test(f.name)) handleDocx(f);
+      else if (/\.doc$/i.test(f.name)) say("Old .doc files are not supported. In Word, choose Save As, pick .docx, then try again.");
+      else handleText(f);
+    });
+    fileIn.value = "";
+  });
+  card.querySelector("#nq-clear").addEventListener("click", function () { text.value = ""; say(""); refresh(); });
+
+  go.addEventListener("click", function () {
+    var notes = text.value.trim();
+    if (busy > 0) { say("Still reading your file. Wait a moment."); return; }
+    if (notes.length < 80) { say("Add a bit more first: at least a few sentences of notes."); return; }
+    if (genBusy || (cbt.active && !cbt.submitted)) { say("Finish or close the quiz you have open first."); return; }
+    say("Making your quiz from your notes. Usually 20 to 40 seconds...");
+    beginGeneratedQuiz({ courseId: sel.value, topic: topic.value.trim() || "My notes", notes: notes.slice(0, MAX) });
+  });
+
+  // quiz progress messages also show inside this card, and the buttons lock while it works
+  var baseStatus = setGenStatus;
+  setGenStatus = function (t) { baseStatus(t); if (t || status.textContent.indexOf("Making your quiz") === 0) say(t); };
+  var baseButtons = setGenButtons;
+  setGenButtons = function (d) { baseButtons(d); go.disabled = d; };
+  refresh();
+})();
+
+// ===== TODAY'S PLAN: what to study today, worked out from your exam date, weak topics and timetable =====
+(function dailyPlan() {
+  var anchor = document.getElementById("h-next");
+  if (!anchor || !anchor.parentNode) return;
+
+  var css = document.createElement("style");
+  css.textContent = [
+    "#h-plan .pl-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }",
+    "#h-plan .pl-item:first-of-type { border-top: 0; }",
+    "#h-plan .pl-ico { font-size: 20px; width: 26px; text-align: center; }",
+    "#h-plan .pl-txt { flex: 1; min-width: 0; }",
+    "#h-plan .pl-title { font-size: 15px; line-height: 1.3; }",
+    "#h-plan .pl-sub { font-size: 12px; opacity: .7; margin-top: 2px; }",
+    "#h-plan .pl-item.done .pl-title { text-decoration: line-through; opacity: .55; }",
+    "#h-plan .pl-item button { flex: none; }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var card = document.createElement("div");
+  card.className = "card";
+  card.id = "h-plan";
+  var label = document.createElement("div");
+  label.className = "label";
+  label.textContent = "TODAY'S PLAN";
+  var head = document.createElement("h2");
+  var sub = document.createElement("p");
+  sub.className = "small";
+  var list = document.createElement("div");
+  card.appendChild(label); card.appendChild(head); card.appendChild(sub); card.appendChild(list);
+  anchor.parentNode.insertBefore(card, anchor);
+
+  function today() { return dateKey(new Date()); }
+  function sessionsToday() { return progress.sessions.filter(function (s) { return s.date === today(); }); }
+  function minutesToday() { return sessionsToday().reduce(function (a, s) { return a + s.minutes; }, 0); }
+  function answersToday(courseId, topic) {
+    return progress.answers.filter(function (a) { return a.date === today() && a.course === courseId && a.topic === topic; }).length;
+  }
+  function studiedToday(courseId, minMinutes) {
+    return sessionsToday().some(function (s) { return s.courseId === courseId && s.minutes >= minMinutes; });
+  }
+  function courseOf(id) { return courses.find(function (c) { return c.id === id; }); }
+  function code(id) { var c = courseOf(id); return c ? courseCode(c) : id; }
+
+  function weakTopics() {
+    var stats = {};
+    progress.answers.forEach(function (a) {
+      var k = a.course + "|" + a.topic;
+      if (!stats[k]) stats[k] = { course: a.course, topic: a.topic, tries: 0, right: 0 };
+      stats[k].tries++;
+      if (a.correct) stats[k].right++;
+    });
+    return Object.keys(stats).map(function (k) { return stats[k]; })
+      .filter(function (t) { return t.tries >= 2 && t.right / t.tries < 0.7 && courseOf(t.course); })
+      .sort(function (a, b) { return a.right / a.tries - b.right / b.tries; });
+  }
+
+  // the course you have studied least over the last 7 days
+  function neglectedCourse(skip) {
+    var since = new Date(); since.setDate(since.getDate() - 7);
+    var from = dateKey(since);
+    var load = {};
+    courses.forEach(function (c) { load[c.id] = 0; });
+    progress.sessions.forEach(function (s) { if (s.date >= from && load[s.courseId] !== undefined) load[s.courseId] += s.minutes; });
+    progress.answers.forEach(function (a) { if (a.date >= from && load[a.course] !== undefined) load[a.course] += 0.5; });
+    var pool = courses.filter(function (c) { return skip.indexOf(c.id) === -1 && c.topics && c.topics.length; });
+    pool.sort(function (a, b) { return load[a.id] - load[b.id]; });
+    return pool[0] || null;
+  }
+
+  function build() {
+    var now = new Date();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
+    var exam = loadExam();
+    var daysLeft = exam ? Math.ceil((exam.getTime() - Date.now()) / 86400000) : null;
+    var examSoon = daysLeft !== null && daysLeft > 0;
+    var budget = dailyTargetMinutes;
+    if (examSoon && daysLeft <= 3) budget = 180;
+    else if (examSoon && daysLeft <= 14) budget = 150;
+
+    var items = [];
+    var used = {};
+
+    var due = window.revisionDue ? window.revisionDue() : 0;
+    if (due > 0) {
+      items.push({
+        icon: "🔁", title: "Revise " + due + " question" + (due === 1 ? "" : "s") + " you got wrong",
+        sub: "Revision pile", mins: Math.min(15, Math.max(5, Math.ceil(due * 0.7))),
+        go: "REVISE", act: function () { window.revisionStart(); }, done: false
+      });
+    }
+
+    timetable.filter(function (e) { return e.day === now.getDay() && timeToMinutes(e.end) > nowMin; })
+      .sort(function (a, b) { return timeToMinutes(a.start) - timeToMinutes(b.start); })
+      .slice(0, 3).forEach(function (e) {
+        var mins = Math.max(10, timeToMinutes(e.end) - timeToMinutes(e.start));
+        used[e.courseId] = true;
+        items.push({
+          icon: "📅", title: code(e.courseId) + " · " + e.topic,
+          sub: "On your timetable, " + e.start + " to " + e.end, mins: mins,
+          go: "START", act: function () { prepareSession(e.courseId, e.topic, mins); },
+          done: studiedToday(e.courseId, Math.min(10, mins))
+        });
+      });
+
+    weakTopics().slice(0, examSoon && daysLeft <= 14 ? 3 : 2).forEach(function (t) {
+      var pct = Math.round(t.right / t.tries * 100);
+      items.push({
+        icon: "🎯", title: "Practise " + t.topic,
+        sub: code(t.course) + " · weak spot, " + pct + "% right", mins: 15,
+        go: "QUIZ", act: function () { practiseTopic(t.course, t.topic); },
+        done: answersToday(t.course, t.topic) >= 5
+      });
+    });
+
+    var fresh = neglectedCourse(Object.keys(used));
+    if (fresh) {
+      var day = Math.floor(Date.now() / 86400000);
+      var topic = fresh.topics[day % fresh.topics.length];
+      items.push({
+        icon: "📖", title: code(fresh.id) + " · " + topic,
+        sub: "You have not touched this course much this week", mins: 30,
+        go: "STUDY", act: function () { prepareSession(fresh.id, topic, 30); },
+        done: studiedToday(fresh.id, 10)
+      });
+    }
+
+    // fit the plan to today's time: always keep the first three, then add while there is room
+    var kept = [], total = 0;
+    items.forEach(function (it, i) {
+      if (i < 3 || total + it.mins <= budget + 10) { kept.push(it); total += it.mins; }
+    });
+    return { items: kept, total: total, budget: budget, daysLeft: examSoon ? daysLeft : null };
+  }
+
+  function render() {
+    var p = build();
+    list.innerHTML = "";
+    var doneCount = p.items.filter(function (i) { return i.done; }).length;
+    var studied = minutesToday();
+    if (p.items.length === 0) {
+      head.textContent = "Nothing urgent today";
+      sub.textContent = "Start a study session from the Planner, or take a quiz.";
+      return;
+    }
+    head.textContent = doneCount === p.items.length ? "All done for today" : doneCount + " of " + p.items.length + " done";
+    sub.textContent = (p.daysLeft !== null ? "Exams in " + p.daysLeft + " day" + (p.daysLeft === 1 ? "" : "s") + ". " : "") +
+      "About " + p.total + " min planned. You have studied " + studied + " min today.";
+    p.items.forEach(function (it) {
+      var row = document.createElement("div");
+      row.className = "pl-item" + (it.done ? " done" : "");
+      var ico = document.createElement("div"); ico.className = "pl-ico"; ico.textContent = it.done ? "✅" : it.icon;
+      var txt = document.createElement("div"); txt.className = "pl-txt";
+      var t = document.createElement("div"); t.className = "pl-title"; t.textContent = it.title;
+      var s = document.createElement("div"); s.className = "pl-sub"; s.textContent = it.sub + " · about " + it.mins + " min";
+      txt.appendChild(t); txt.appendChild(s);
+      row.appendChild(ico); row.appendChild(txt);
+      if (!it.done) {
+        var b = document.createElement("button");
+        b.className = "mini"; b.textContent = it.go;
+        b.addEventListener("click", it.act);
+        row.appendChild(b);
+      }
+      list.appendChild(row);
+    });
+  }
+
+  var baseHome2 = renderHome;
+  renderHome = function () { baseHome2.apply(this, arguments); render(); };
+  render();
+})();
+
+// ===== VOICE: dictate your questions, and have answers read aloud =====
+(function voice() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var synth = window.speechSynthesis;
+  var composer = sendButton && sendButton.parentNode;
+  var AUTO_KEY = "sc-autoread";
+  function getAuto() { try { return localStorage.getItem(AUTO_KEY) === "1"; } catch (e) { return false; } }
+  function setAuto(on) { try { localStorage.setItem(AUTO_KEY, on ? "1" : "0"); } catch (e) {} }
+
+  var css = document.createElement("style");
+  css.textContent = [
+    "#mic-btn { flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; }",
+    "#mic-btn.on { background: #d9534f; border-color: #d9534f; color: #fff; animation: micpulse 1.2s infinite ease-in-out; }",
+    "@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,83,79,.5); } 50% { box-shadow: 0 0 0 8px rgba(217,83,79,0); } }",
+    "@media (prefers-reduced-motion: reduce) { #mic-btn.on { animation: none; } }",
+    ".speak-row { margin-top: 6px; }",
+    ".speak-row button { width: auto; padding: 4px 10px; font-size: 12px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--text); cursor: pointer; }",
+    ".speak-row button.on { border-color: var(--accent); color: var(--accent); }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  // ---------- turning an answer into something that sounds right when spoken ----------
+  var GREEK = { alpha: "alpha", beta: "beta", gamma: "gamma", delta: "delta", Delta: "delta", epsilon: "epsilon", theta: "theta", lambda: "lambda", mu: "mu", pi: "pi", rho: "rho", sigma: "sigma", tau: "tau", phi: "phi", omega: "omega", Omega: "ohms", omicron: "omicron" };
+  function speakMath(m) {
+    var s = m;
+    s = s.replace(/\^\{?\s*2\s*\}?/g, " squared ").replace(/\^\{?\s*3\s*\}?/g, " cubed ")
+         .replace(/\^\{([^{}]*)\}/g, " to the power $1 ").replace(/\^(\w)/g, " to the power $1 ")
+         .replace(/_\{([^{}]*)\}/g, " $1 ").replace(/_(\w)/g, " $1 ");
+    for (var i = 0; i < 3; i++) {
+      s = s.replace(/\\d?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, " $1 over $2 ")
+           .replace(/\\sqrt\s*\{([^{}]*)\}/g, " square root of $1 ")
+           .replace(/\\(?:text|mathrm|mathbf|operatorname)\s*\{([^{}]*)\}/g, " $1 ");
+    }
+    s = s.replace(/\\left|\\right/g, "")
+         .replace(/\\times|\\cdot/g, " times ").replace(/\\div/g, " divided by ").replace(/\\pm/g, " plus or minus ")
+         .replace(/\\approx/g, " is approximately ").replace(/\\leq?|\\le\b/g, " is less than or equal to ")
+         .replace(/\\geq?|\\ge\b/g, " is greater than or equal to ").replace(/\\neq/g, " is not equal to ")
+         .replace(/\\(?:rightarrow|to)\b/g, " gives ").replace(/\\infty/g, " infinity ")
+         .replace(/\\sum/g, " sum of ").replace(/\\int/g, " integral of ").replace(/\\partial/g, " partial ")
+         .replace(/\\circ/g, " degrees ").replace(/\\%/g, " percent ")
+         .replace(/\\([A-Za-z]+)/g, function (all, name) { return GREEK[name] ? " " + GREEK[name] + " " : " "; })
+         .replace(/[{}]/g, " ").replace(/=/g, " equals ").replace(/\+/g, " plus ")
+         .replace(/(\s)-(\s?\d|\s?[a-zA-Z])/g, "$1 minus $2").replace(/\s+/g, " ");
+    return " " + s.trim() + " ";
+  }
+  function speakable(reply) {
+    var t = String(reply || "");
+    t = t.replace(/```[\s\S]*?```/g, " (code skipped) ");
+    t = t.replace(/\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]|\$\$([\s\S]*?)\$\$/g, function (all, a, b, c) { return speakMath(a || b || c || ""); });
+    t = t.replace(/\*\*|__|`/g, "").replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*\d+[.)]\s+/gm, "");
+    t = t.replace(/https?:\/\/\S+/g, " link ").replace(/[ \t]+/g, " ");
+    return t.trim();
+  }
+  window.woruSpeakable = speakable;
+
+  function chunks(text) {
+    var out = [];
+    (text.match(/[^.!?\n:;]+[.!?:;]*/g) || [text]).forEach(function (piece) {
+      piece = piece.trim();
+      while (piece.length > 200) {
+        var cut = piece.lastIndexOf(" ", 200);
+        if (cut < 60) cut = 200;
+        out.push(piece.slice(0, cut).trim());
+        piece = piece.slice(cut).trim();
+      }
+      if (piece) out.push(piece);
+    });
+    return out;
+  }
+
+  // ---------- read aloud ----------
+  var speaking = null; // the button that is currently playing
+  function pickVoice() {
+    var vs = synth.getVoices ? synth.getVoices() : [];
+    var order = ["en-NG", "en-GB", "en-US", "en"];
+    for (var i = 0; i < order.length; i++) {
+      var v = vs.filter(function (x) { return x.lang && x.lang.replace("_", "-").indexOf(order[i]) === 0; })[0];
+      if (v) return v;
+    }
+    return null;
+  }
+  function stopSpeaking() {
+    if (!synth) return;
+    synth.cancel();
+    if (speaking) { speaking.classList.remove("on"); speaking.textContent = "🔊 LISTEN"; speaking = null; }
+  }
+  function speak(reply, btn) {
+    if (!synth) return;
+    var wasThis = speaking === btn;
+    stopSpeaking();
+    if (wasThis) return;
+    var parts = chunks(speakable(reply));
+    if (parts.length === 0) return;
+    speaking = btn;
+    if (btn) { btn.classList.add("on"); btn.textContent = "⏹ STOP"; }
+    var voice = pickVoice();
+    parts.forEach(function (p, i) {
+      var u = new SpeechSynthesisUtterance(p);
+      if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-GB"; }
+      u.rate = 1;
+      if (i === parts.length - 1) u.onend = u.onerror = function () { if (speaking === btn) stopSpeaking(); };
+      synth.speak(u);
+    });
+  }
+
+  if (synth) {
+    function addListen(box, reply) {
+      var row = document.createElement("div");
+      row.className = "speak-row";
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "🔊 LISTEN";
+      b.addEventListener("click", function () { try { speak(reply, b); } catch (e) { stopSpeaking(); } });
+      row.appendChild(b);
+      box.appendChild(row);
+      return b;
+    }
+    // reopened chats call this directly, so old answers get the button too (without speaking)
+    window.woruAddListen = addListen;
+    if (window.woruRedrawChat) window.woruRedrawChat();
+    var baseRender = renderReply;
+    renderReply = function (box, reply) {
+      baseRender(box, reply);
+      var b = addListen(box, reply);
+      if (getAuto() && box.isConnected) { try { speak(reply, b); } catch (e) {} }
+    };
+    window.addEventListener("pagehide", function () { synth.cancel(); });
+    if (synth.addEventListener) synth.addEventListener("voiceschanged", function () {});
+
+    // auto-read switch in the bar above the chat
+    var bar = document.querySelector(".chat-tools");
+    if (bar) {
+      var auto = document.createElement("button");
+      auto.type = "button";
+      function paint() { auto.textContent = "🔊 Auto-read: " + (getAuto() ? "on" : "off"); }
+      paint();
+      auto.addEventListener("click", function () {
+        setAuto(!getAuto());
+        paint();
+        if (!getAuto()) stopSpeaking();
+      });
+      bar.appendChild(auto);
+    }
+  }
+
+  // ---------- dictation ----------
+  if (SR && composer) {
+    var mic = document.createElement("button");
+    mic.id = "mic-btn";
+    mic.type = "button";
+    mic.setAttribute("aria-label", "Speak your question");
+    mic.textContent = "🎤";
+    composer.insertBefore(mic, sendButton);
+
+    var rec = null, listening = false, base = "", finalText = "", lang = "en-NG", triedFallback = false;
+
+    function note(t) { try { badgeToast(t); } catch (e) {} }
+    function stopListening() {
+      listening = false;
+      mic.classList.remove("on");
+      mic.textContent = "🎤";
+      questionInput.placeholder = "Message your tutor";
+      try { if (rec) rec.stop(); } catch (e) {}
+    }
+    function begin() {
+      rec = new SR();
+      rec.lang = lang;
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = function (ev) {
+        var interim = "";
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          var r = ev.results[i];
+          if (r.isFinal) finalText += r[0].transcript + " ";
+          else interim += r[0].transcript;
+        }
+        questionInput.value = (base ? base + " " : "") + (finalText + interim).replace(/\s+/g, " ").trim();
+        questionInput.dispatchEvent(new Event("input"));
+      };
+      rec.onerror = function (ev) {
+        var e = ev && ev.error;
+        if (e === "language-not-supported" && !triedFallback) { triedFallback = true; lang = "en-US"; try { rec.abort(); } catch (x) {} setTimeout(function () { if (listening) begin(); }, 150); return; }
+        if (e === "not-allowed" || e === "service-not-allowed") note("Allow the microphone for this site in your browser settings.");
+        else if (e === "network") note("Voice typing needs an internet connection.");
+        else if (e === "audio-capture") note("No microphone found.");
+        if (e !== "no-speech" && e !== "aborted") stopListening();
+      };
+      rec.onend = function () {
+        // some phones stop after a pause: keep listening until the person taps the mic again
+        if (listening) { try { rec.start(); } catch (x) { stopListening(); } }
+      };
+      try { rec.start(); } catch (x) { stopListening(); }
+    }
+    mic.addEventListener("click", function () {
+      if (listening) { stopListening(); return; }
+      if (synth) stopSpeaking();
+      base = questionInput.value.trim();
+      finalText = "";
+      listening = true;
+      mic.classList.add("on");
+      mic.textContent = "⏹";
+      questionInput.placeholder = "Listening... speak now";
+      begin();
+    });
+    // sending a message ends dictation
+    sendButton.addEventListener("click", function () { if (listening) stopListening(); }, true);
+  }
 })();
