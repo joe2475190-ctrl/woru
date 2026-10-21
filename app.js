@@ -4086,6 +4086,11 @@ function addFollowups(box, reply) {
   var AUTO_KEY = "sc-autoread";
   function getAuto() { try { return localStorage.getItem(AUTO_KEY) === "1"; } catch (e) { return false; } }
   function setAuto(on) { try { localStorage.setItem(AUTO_KEY, on ? "1" : "0"); } catch (e) {} }
+  var RATES = [1, 1.15, 1.3, 1.5];
+  function getRate() { try { var r = parseFloat(localStorage.getItem("sc-rate")); return r > 0 ? r : 1.15; } catch (e) { return 1.15; } }
+  function setRate(r) { try { localStorage.setItem("sc-rate", String(r)); } catch (e) {} }
+  function getVoiceName() { try { return localStorage.getItem("sc-voice") || ""; } catch (e) { return ""; } }
+  function setVoiceName(n) { try { localStorage.setItem("sc-voice", n); } catch (e) {} }
 
   var css = document.createElement("style");
   css.textContent = [
@@ -4093,6 +4098,7 @@ function addFollowups(box, reply) {
     "#mic-btn.on { background: #d9534f; border-color: #d9534f; color: #fff; animation: micpulse 1.2s infinite ease-in-out; }",
     "@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,83,79,.5); } 50% { box-shadow: 0 0 0 8px rgba(217,83,79,0); } }",
     "@media (prefers-reduced-motion: reduce) { #mic-btn.on { animation: none; } }",
+    ".chat-tools { flex-wrap: wrap; }",
     ".speak-row { margin-top: 6px; }",
     ".speak-row button { width: auto; padding: 4px 10px; font-size: 12px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--text); cursor: pointer; }",
     ".speak-row button.on { border-color: var(--accent); color: var(--accent); }"
@@ -4129,35 +4135,56 @@ function addFollowups(box, reply) {
     t = t.replace(/\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]|\$\$([\s\S]*?)\$\$/g, function (all, a, b, c) { return speakMath(a || b || c || ""); });
     t = t.replace(/\*\*|__|`/g, "").replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*\d+[.)]\s+/gm, "");
     t = t.replace(/https?:\/\/\S+/g, " link ").replace(/[ \t]+/g, " ");
+    t = t.replace(/\s+([.,;:!?])/g, "$1");
     return t.trim();
   }
   window.woruSpeakable = speakable;
 
   function chunks(text) {
-    var out = [];
-    (text.match(/[^.!?\n:;]+[.!?:;]*/g) || [text]).forEach(function (piece) {
+    var sentences = [];
+    (text.match(/[^.!?\n]+[.!?]*/g) || [text]).forEach(function (piece) {
       piece = piece.trim();
-      while (piece.length > 200) {
-        var cut = piece.lastIndexOf(" ", 200);
-        if (cut < 60) cut = 200;
-        out.push(piece.slice(0, cut).trim());
+      while (piece.length > 220) {
+        var cut = piece.lastIndexOf(" ", 220);
+        if (cut < 80) cut = 220;
+        sentences.push(piece.slice(0, cut).trim());
         piece = piece.slice(cut).trim();
       }
-      if (piece) out.push(piece);
+      if (piece) sentences.push(piece);
     });
+    var out = [], cur = "";
+    sentences.forEach(function (x) {
+      if (cur && (cur + " " + x).length > 220) { out.push(cur); cur = x; }
+      else cur = cur ? cur + " " + x : x;
+    });
+    if (cur) out.push(cur);
     return out;
   }
 
   // ---------- read aloud ----------
   var speaking = null; // the button that is currently playing
-  function pickVoice() {
+  function englishVoices() {
     var vs = synth.getVoices ? synth.getVoices() : [];
-    var order = ["en-NG", "en-GB", "en-US", "en"];
-    for (var i = 0; i < order.length; i++) {
-      var v = vs.filter(function (x) { return x.lang && x.lang.replace("_", "-").indexOf(order[i]) === 0; })[0];
-      if (v) return v;
+    function score(v) {
+      var n = v.name || "", l = (v.lang || "").replace("_", "-");
+      var sc = 0;
+      if (/natural|online/i.test(n)) sc += 10;
+      if (/google/i.test(n)) sc += 4;
+      if (l.indexOf("en-NG") === 0) sc += 3; else if (l.indexOf("en-GB") === 0) sc += 2; else if (l.indexOf("en-US") === 0) sc += 1;
+      return sc;
     }
-    return null;
+    return vs.filter(function (v) { return /^en([-_]|$)/i.test(v.lang || ""); })
+      .sort(function (a, b) { return score(b) - score(a); });
+  }
+  function pickVoice() {
+    var list = englishVoices();
+    var want = getVoiceName();
+    var chosen = want && list.filter(function (v) { return v.name === want; })[0];
+    return chosen || list[0] || null;
+  }
+  function shortName(v) {
+    if (!v) return "default";
+    return (v.name || "voice").replace(/^(Microsoft|Google)\s+/i, "").replace(/\(.*?\)/g, "").replace(/\s*-.*$/, "").trim() || "voice";
   }
   function stopSpeaking() {
     if (!synth) return;
@@ -4177,7 +4204,7 @@ function addFollowups(box, reply) {
     parts.forEach(function (p, i) {
       var u = new SpeechSynthesisUtterance(p);
       if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-GB"; }
-      u.rate = 1;
+      u.rate = getRate();
       if (i === parts.length - 1) u.onend = u.onerror = function () { if (speaking === btn) stopSpeaking(); };
       synth.speak(u);
     });
@@ -4207,19 +4234,59 @@ function addFollowups(box, reply) {
     window.addEventListener("pagehide", function () { synth.cancel(); });
     if (synth.addEventListener) synth.addEventListener("voiceschanged", function () {});
 
-    // auto-read switch in the bar above the chat
-    var bar = document.querySelector(".chat-tools");
-    if (bar) {
+    // voice settings live in the "+" menu next to the typing box
+    var menu = document.querySelector(".quick");
+    if (menu) {
+      var line = document.createElement("div");
+      line.style.cssText = "border-top:1px solid var(--line);margin:4px 2px;";
+      menu.appendChild(line);
+
       var auto = document.createElement("button");
       auto.type = "button";
       function paint() { auto.textContent = "🔊 Auto-read: " + (getAuto() ? "on" : "off"); }
       paint();
-      auto.addEventListener("click", function () {
+      auto.addEventListener("click", function (e) {
+        e.stopPropagation();
         setAuto(!getAuto());
         paint();
         if (!getAuto()) stopSpeaking();
       });
-      bar.appendChild(auto);
+      menu.appendChild(auto);
+
+      var speed = document.createElement("button");
+      speed.type = "button";
+      function paintSpeed() { speed.textContent = "⏩ Speed: " + getRate() + "x"; }
+      paintSpeed();
+      speed.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var i = RATES.indexOf(getRate());
+        setRate(RATES[(i + 1) % RATES.length]);
+        paintSpeed();
+      });
+      menu.appendChild(speed);
+
+      var vbtn = document.createElement("button");
+      vbtn.type = "button";
+      function paintVoice() { vbtn.textContent = "🗣 Voice: " + shortName(pickVoice()); }
+      paintVoice();
+      if (synth.addEventListener) synth.addEventListener("voiceschanged", paintVoice);
+      vbtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var list = englishVoices();
+        if (list.length === 0) return;
+        var cur = pickVoice();
+        var i = -1;
+        list.forEach(function (v, k) { if (cur && v.name === cur.name) i = k; });
+        var next = list[(i + 1) % list.length];
+        setVoiceName(next.name);
+        paintVoice();
+        // let the student hear it straight away
+        stopSpeaking();
+        var u = new SpeechSynthesisUtterance("This is how I sound. Ohm's law says voltage equals current times resistance.");
+        u.voice = next; u.lang = next.lang; u.rate = getRate();
+        synth.speak(u);
+      });
+      menu.appendChild(vbtn);
     }
   }
 
@@ -4248,13 +4315,10 @@ function addFollowups(box, reply) {
       rec.continuous = true;
       rec.interimResults = true;
       rec.onresult = function (ev) {
-        var interim = "";
-        for (var i = ev.resultIndex; i < ev.results.length; i++) {
-          var r = ev.results[i];
-          if (r.isFinal) finalText += r[0].transcript + " ";
-          else interim += r[0].transcript;
-        }
-        questionInput.value = (base ? base + " " : "") + (finalText + interim).replace(/\s+/g, " ").trim();
+        // read the whole list every time (some phones resend earlier words), then add it to what was typed before
+        var said = "";
+        for (var i = 0; i < ev.results.length; i++) said += ev.results[i][0].transcript + " ";
+        questionInput.value = (base ? base + " " : "") + said.replace(/\s+/g, " ").trim();
         questionInput.dispatchEvent(new Event("input"));
       };
       rec.onerror = function (ev) {
@@ -4263,11 +4327,17 @@ function addFollowups(box, reply) {
         if (e === "not-allowed" || e === "service-not-allowed") note("Allow the microphone for this site in your browser settings.");
         else if (e === "network") note("Voice typing needs an internet connection.");
         else if (e === "audio-capture") note("No microphone found.");
+        else if (e && e !== "no-speech" && e !== "aborted") note("Voice typing stopped (" + e + "). Tap the mic to try again.");
         if (e !== "no-speech" && e !== "aborted") stopListening();
       };
       rec.onend = function () {
-        // some phones stop after a pause: keep listening until the person taps the mic again
-        if (listening) { try { rec.start(); } catch (x) { stopListening(); } }
+        // the browser ends a session after a pause: keep what was heard, then listen again until the mic is tapped
+        if (!listening) return;
+        base = questionInput.value.trim();
+        setTimeout(function () {
+          if (!listening) return;
+          try { begin(); } catch (x) { stopListening(); }
+        }, 250);
       };
       try { rec.start(); } catch (x) { stopListening(); }
     }
@@ -4285,4 +4355,146 @@ function addFollowups(box, reply) {
     // sending a message ends dictation
     sendButton.addEventListener("click", function () { if (listening) stopListening(); }, true);
   }
+})();
+
+// ===== FORMULA SHEETS: one clean page of formulas, to read, print or save as PDF =====
+(function formulaSheets() {
+  var css = document.createElement("style");
+  css.textContent = [
+    "#sheet-overlay { position: fixed; inset: 0; z-index: 200; overflow-y: auto; background: var(--bg); color: var(--text); padding: 0 16px 40px; }",
+    "#sheet-overlay .sheet-bar { position: sticky; top: 0; display: flex; gap: 8px; align-items: center; padding: 12px 0; background: var(--bg); z-index: 2; border-bottom: 1px solid var(--line); }",
+    "#sheet-overlay .sheet-bar span { flex: 1; font-size: 12px; letter-spacing: .12em; opacity: .7; }",
+    "#sheet-overlay .sheet-bar button { width: auto; padding: 8px 14px; font-size: 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }",
+    "#sheet-overlay .sheet-bar button.go { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }",
+    "#sheet-page { max-width: 760px; margin: 0 auto; padding-top: 14px; }",
+    "#sheet-page h1 { font-size: 22px; margin: 6px 0 2px; }",
+    "#sheet-page .fs-sub { font-size: 13px; opacity: .7; margin: 0 0 14px; }",
+    "#sheet-page .fs-topic { break-inside: avoid; margin: 0 0 16px; padding-top: 10px; border-top: 2px solid var(--accent); }",
+    "#sheet-page h2 { font-size: 17px; margin: 0 0 6px; }",
+    "#sheet-page .fs-h { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .65; margin: 10px 0 4px; }",
+    "#sheet-page .fs-formula { padding: 6px 10px; margin: 4px 0; border-left: 3px solid var(--accent); background: var(--card); border-radius: 6px; overflow-x: auto; }",
+    "#sheet-page ul { margin: 4px 0 4px 18px; padding: 0; } #sheet-page li { margin: 2px 0; line-height: 1.4; font-size: 14px; }",
+    "#sheet-page .fs-ex { font-size: 14px; line-height: 1.4; margin: 4px 0; }",
+    "#sheet-page.wide { column-count: 2; column-gap: 24px; max-width: 980px; }",
+    "#sheet-page.wide h1, #sheet-page.wide .fs-sub { column-span: all; }",
+    "@media (max-width: 700px) { #sheet-page.wide { column-count: 1; } }",
+    "@media print {",
+    "  body > *:not(#sheet-overlay) { display: none !important; }",
+    "  html, body { background: #fff !important; }",
+    "  #sheet-overlay { position: static; overflow: visible; padding: 0; background: #fff; }",
+    "  #sheet-overlay .sheet-bar { display: none; }",
+    "  #sheet-overlay, #sheet-overlay * { color: #000 !important; }",
+    "  #sheet-page .fs-formula { background: #f3f3f3 !important; border-left-color: #000 !important; }",
+    "  #sheet-page .fs-topic { border-top-color: #000 !important; }",
+    "}"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var overlay = null;
+  function closeSheet() { if (overlay) { overlay.remove(); overlay = null; } }
+
+  function topicBlock(topic, lesson, full) {
+    var box = mk("div", "fs-topic");
+    box.appendChild(mk("h2", "", topic));
+    var formulas = [];
+    (lesson.sections || []).forEach(function (sec) {
+      (sec.formulas || []).forEach(function (f) { formulas.push({ h: sec.heading, f: f }); });
+    });
+    if (formulas.length === 0) {
+      box.appendChild(mk("div", "fs-h", "No formulas in this topic"));
+    } else {
+      var last = null;
+      formulas.forEach(function (x) {
+        if (x.h !== last) { box.appendChild(mk("div", "fs-h", x.h)); last = x.h; }
+        box.appendChild(mk("div", "fs-formula", x.f));
+      });
+    }
+    function list(title, items) {
+      if (!items || items.length === 0) return;
+      box.appendChild(mk("div", "fs-h", title));
+      var ul = document.createElement("ul");
+      items.forEach(function (t) { ul.appendChild(mk("li", "", t)); });
+      box.appendChild(ul);
+    }
+    list("Remember", lesson.takeaways);
+    if (full) {
+      list("Common mistakes", lesson.mistakes);
+      var ex = (lesson.examples || [])[0];
+      if (ex) {
+        box.appendChild(mk("div", "fs-h", "Worked example"));
+        box.appendChild(mk("div", "fs-ex", ex.problem));
+        box.appendChild(mk("div", "fs-ex", ex.solution));
+      }
+    }
+    return box;
+  }
+
+  function openSheet(title, subtitle, blocks, wide) {
+    closeSheet();
+    overlay = document.createElement("div");
+    overlay.id = "sheet-overlay";
+    var bar = mk("div", "sheet-bar");
+    bar.appendChild(mk("span", "", "FORMULA SHEET"));
+    var print = mk("button", "go", "🖨 PRINT / SAVE PDF");
+    print.addEventListener("click", function () { window.print(); });
+    var close = mk("button", "", "CLOSE");
+    close.addEventListener("click", closeSheet);
+    bar.appendChild(print); bar.appendChild(close);
+    var page = mk("div", wide ? "wide" : "");
+    page.id = "sheet-page";
+    page.appendChild(mk("h1", "", title));
+    page.appendChild(mk("p", "fs-sub", subtitle));
+    blocks.forEach(function (b) { page.appendChild(b); });
+    overlay.appendChild(bar);
+    overlay.appendChild(page);
+    document.body.appendChild(overlay);
+    overlay.scrollTop = 0;
+    renderMath(page);
+  }
+
+  // ----- one topic: shown in the reader, under the lesson -----
+  var oneBtn = mk("button", "back", "📄 FORMULA SHEET FOR THIS TOPIC");
+  oneBtn.id = "rd-sheet";
+  rdGenerate.parentNode.insertBefore(oneBtn, rdCaution);
+  oneBtn.addEventListener("click", async function () {
+    if (!reader.course || reader.busy) return;
+    var key = currentKey();
+    if (!(lessons[key] && validLesson(lessons[key].lesson))) {
+      if (!navigator.onLine) { rdStatus.textContent = "Write the lesson first (needs internet). The sheet is made from it."; return; }
+      await generateLesson(false);
+    }
+    var saved = lessons[key];
+    if (!(saved && validLesson(saved.lesson))) return; // the lesson failed; its message is already shown
+    openSheet(reader.topic, reader.course.name, [topicBlock(reader.topic, saved.lesson, true)], false);
+  });
+
+  // ----- a whole course: every topic that already has a lesson -----
+  var courseBtn = mk("button", "back", "📄 COURSE FORMULA SHEET");
+  courseBtn.id = "course-sheet";
+  var anchorBtn = document.getElementById("course-quiz");
+  var courseNote = mk("p", "small", "");
+  courseNote.id = "course-sheet-note";
+  if (anchorBtn && anchorBtn.parentNode) {
+    anchorBtn.parentNode.insertBefore(courseBtn, anchorBtn.nextSibling);
+    anchorBtn.parentNode.insertBefore(courseNote, courseBtn.nextSibling);
+  }
+  courseBtn.addEventListener("click", function () {
+    if (!studyCourse) return;
+    var blocks = [];
+    var missing = 0;
+    studyCourse.topics.forEach(function (t) {
+      var saved = lessons[topicKey(studyCourse.id, t)];
+      if (saved && validLesson(saved.lesson)) blocks.push(topicBlock(t, saved.lesson, false));
+      else missing++;
+    });
+    if (blocks.length === 0) {
+      courseNote.textContent = "No lessons yet. Open a topic and tap WRITE A LESSON, and its formulas will appear here.";
+      return;
+    }
+    courseNote.textContent = missing > 0 ? missing + " topic" + (missing === 1 ? " has" : "s have") + " no lesson yet, so they are not on the sheet." : "";
+    openSheet(courseCode(studyCourse) + " formula sheet", blocks.length + " of " + studyCourse.topics.length + " topics, from your saved lessons", blocks, true);
+  });
+  // clear the note when the student moves to another course
+  var baseSetView = setStudyView;
+  setStudyView = function (name) { baseSetView.apply(this, arguments); courseNote.textContent = ""; };
 })();
