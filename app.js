@@ -4378,6 +4378,11 @@ function addFollowups(box, reply) {
     "#sheet-page.wide { column-count: 2; column-gap: 24px; max-width: 980px; }",
     "#sheet-page.wide h1, #sheet-page.wide .fs-sub { column-span: all; }",
     "@media (max-width: 700px) { #sheet-page.wide { column-count: 1; } }",
+    "#sheet-page .fs-lesson { margin: 0 0 18px; }",
+    "#sheet-page .fs-lesson h2 { font-size: 20px; border-bottom: 2px solid var(--accent); padding-bottom: 4px; margin-bottom: 8px; }",
+    "#sheet-page .fs-lesson .ls-ex, #sheet-page .fs-lesson .ls-box { break-inside: avoid; }",
+    "#sheet-page .fs-lesson .ls-h { break-after: avoid; }",
+    "@media print { #sheet-page .fs-lesson + .fs-lesson { break-before: page; } #sheet-page .fs-lesson h2 { border-bottom-color: #000 !important; } #sheet-page .formula, #sheet-page .ls-ex, #sheet-page .ls-box { background: #f3f3f3 !important; border-color: #999 !important; } }",
     "@media print {",
     "  body > *:not(#sheet-overlay) { display: none !important; }",
     "  html, body { background: #fff !important; }",
@@ -4497,4 +4502,41 @@ function addFollowups(box, reply) {
   // clear the note when the student moves to another course
   var baseSetView = setStudyView;
   setStudyView = function (name) { baseSetView.apply(this, arguments); courseNote.textContent = ""; };
+
+  // ----- full lessons as a PDF: one lesson, or every lesson in a course -----
+  function lessonBlock(topic, lesson) {
+    var box = mk("div", "fs-lesson");
+    box.appendChild(mk("h2", "", topic));
+    renderLesson(box, lesson);
+    return box;
+  }
+  var lessonBtn = mk("button", "back", "🖨 PRINT THIS LESSON AS PDF");
+  lessonBtn.id = "rd-print";
+  oneBtn.parentNode.insertBefore(lessonBtn, oneBtn.nextSibling);
+  lessonBtn.addEventListener("click", function () {
+    if (!reader.course || reader.busy) return;
+    var saved = lessons[currentKey()];
+    if (!(saved && validLesson(saved.lesson))) { rdStatus.textContent = "Write the lesson first, then you can print it."; return; }
+    rdStatus.textContent = "";
+    openSheet(reader.topic, reader.course.name, [lessonBlock(reader.topic, saved.lesson)], false);
+  });
+
+  var allBtn = mk("button", "back", "🖨 PRINT ALL LESSONS AS PDF");
+  allBtn.id = "course-print";
+  courseBtn.parentNode.insertBefore(allBtn, courseBtn.nextSibling);
+  allBtn.addEventListener("click", function () {
+    if (!studyCourse) return;
+    var blocks = [], missing = 0;
+    studyCourse.topics.forEach(function (t) {
+      var saved = lessons[topicKey(studyCourse.id, t)];
+      if (saved && validLesson(saved.lesson)) blocks.push(lessonBlock(t, saved.lesson));
+      else missing++;
+    });
+    if (blocks.length === 0) {
+      courseNote.textContent = "No lessons yet. Open a topic and tap WRITE A LESSON first.";
+      return;
+    }
+    courseNote.textContent = missing > 0 ? missing + " topic" + (missing === 1 ? " has" : "s have") + " no lesson yet, so they are not included." : "";
+    openSheet(courseCode(studyCourse) + " lessons", blocks.length + " of " + studyCourse.topics.length + " topics", blocks, false);
+  });
 })();
