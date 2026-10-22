@@ -4540,3 +4540,172 @@ function addFollowups(box, reply) {
     openSheet(courseCode(studyCourse) + " lessons", blocks.length + " of " + studyCourse.topics.length + " topics", blocks, false);
   });
 })();
+
+// ===== MUSIC: play your own YouTube or Spotify playlists inside the app =====
+(function music() {
+  var KEY = "studycore-music";
+  var data = load();
+
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY));
+      if (d && Array.isArray(d.saved)) return { saved: d.saved.filter(function (x) { return x && typeof x.url === "string"; }).slice(0, 20), last: String(d.last || "") };
+    } catch (e) {}
+    return { saved: [], last: "" };
+  }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+
+  // Works out the player address for a pasted link. Returns null when the link is not understood.
+  function parse(raw) {
+    var t = String(raw || "").trim();
+    if (!t) return null;
+    if (!/^https?:\/\//i.test(t)) t = "https://" + t;
+    var u;
+    try { u = new URL(t); } catch (e) { return null; }
+    var host = u.hostname.replace(/^www\.|^m\.|^music\./, "");
+    var q = "autoplay=1&playsinline=1&rel=0";
+    if (host === "youtube.com" || host === "youtu.be" || host === "youtube-nocookie.com") {
+      var list = u.searchParams.get("list");
+      var id = u.searchParams.get("v");
+      if (host === "youtu.be") id = u.pathname.split("/")[1] || "";
+      var m = u.pathname.match(/^\/(?:shorts|live|embed)\/([\w-]{6,})/);
+      if (m) id = m[1];
+      if (!id && !list) return null;
+      var base = "https://www.youtube-nocookie.com/embed/" + (id ? encodeURIComponent(id) : "videoseries");
+      var params = (list ? "list=" + encodeURIComponent(list) + "&" : "") + q;
+      return { kind: "youtube", src: base + "?" + params, height: 220, label: list ? "YouTube playlist" : "YouTube video" };
+    }
+    if (host === "open.spotify.com") {
+      var s = u.pathname.replace(/^\/intl-[a-z-]+/i, "").match(/^\/(track|album|playlist|artist|show|episode)\/([A-Za-z0-9]+)/);
+      if (!s) return null;
+      var small = s[1] === "track" || s[1] === "episode";
+      return { kind: "spotify", src: "https://open.spotify.com/embed/" + s[1] + "/" + s[2] + "?utm_source=generator", height: small ? 152 : 352, label: "Spotify " + s[1] };
+    }
+    return null;
+  }
+  window.woruMusicParse = parse;
+
+  var css = document.createElement("style");
+  css.textContent = [
+    "#mu-btn { position: fixed; top: 14px; right: 58px; z-index: 160; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card2); color: var(--text); font-size: 16px; cursor: pointer; }",
+    "#mu-btn.live { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(52,211,153,.25); }",
+    "#mu-panel { position: fixed; top: 58px; left: 12px; right: 12px; max-width: 520px; margin-left: auto; z-index: 150; max-height: calc(100vh - 140px); overflow-y: auto; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--card2); box-shadow: 0 12px 40px rgba(0,0,0,.25); transition: transform .2s ease, opacity .2s ease; }",
+    "#mu-panel.away { transform: translateY(-130%); opacity: 0; pointer-events: none; }",
+    "#mu-panel .mu-row { display: flex; gap: 8px; margin: 6px 0; }",
+    "#mu-panel input { flex: 1; min-width: 0; box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; font-size: 15px; padding: 10px; }",
+    "#mu-panel button { width: auto; padding: 8px 12px; font-size: 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }",
+    "#mu-panel button.go { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }",
+    "#mu-panel .mu-msg { font-size: 13px; opacity: .8; min-height: 1.2em; margin: 4px 0; }",
+    "#mu-panel .mu-hint { font-size: 12px; opacity: .65; margin: 6px 0; line-height: 1.4; }",
+    "#mu-panel .mu-saved { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--line); }",
+    "#mu-panel .mu-saved .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }",
+    "#mu-panel .mu-saved button.t { text-align: left; background: none; border: 0; padding: 4px 0; border-radius: 0; }",
+    "#mu-panel .mu-player { margin-top: 10px; border-radius: 12px; overflow: hidden; }",
+    "#mu-panel .mu-player iframe { width: 100%; border: 0; display: block; }",
+    "@media print { #mu-btn, #mu-panel { display: none !important; } }"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var btn = document.createElement("button");
+  btn.id = "mu-btn";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Music");
+  btn.textContent = "🎵";
+  document.body.appendChild(btn);
+
+  var panel = document.createElement("div");
+  panel.id = "mu-panel";
+  panel.className = "away";
+  panel.innerHTML =
+    '<div class="label">MUSIC</div>' +
+    '<p class="mu-hint">Open YouTube or Spotify, tap Share, copy the link of your playlist or song, and paste it here. The music keeps playing while you move around WORU.</p>' +
+    '<div class="mu-row"><input type="text" id="mu-url" placeholder="Paste a YouTube or Spotify link" autocomplete="off"><button class="go" id="mu-play">PLAY</button></div>' +
+    '<div class="mu-row"><button id="mu-save">★ SAVE THIS</button><button id="mu-stop">⏹ STOP MUSIC</button><button id="mu-hide">▲ HIDE</button></div>' +
+    '<div class="mu-msg" id="mu-msg"></div>' +
+    '<div class="mu-player" id="mu-player"></div>' +
+    '<div id="mu-list"></div>';
+  document.body.appendChild(panel);
+
+  var urlIn = panel.querySelector("#mu-url");
+  var msg = panel.querySelector("#mu-msg");
+  var player = panel.querySelector("#mu-player");
+  var list = panel.querySelector("#mu-list");
+  var current = null; // { url, info }
+
+  function say(t) { msg.textContent = t; }
+  function open() { panel.classList.remove("away"); }
+  function hide() { panel.classList.add("away"); }
+
+  function play(url) {
+    var info = parse(url);
+    if (!info) { say("That link is not one I can play. Use a YouTube or Spotify link (a video, playlist, song or album)."); return; }
+    if (!navigator.onLine) { say("Music needs an internet connection."); return; }
+    player.innerHTML = "";
+    var f = document.createElement("iframe");
+    f.src = info.src;
+    f.height = String(info.height);
+    f.setAttribute("allow", "autoplay; encrypted-media; clipboard-write; picture-in-picture; fullscreen");
+    f.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+    f.setAttribute("title", "Music player");
+    player.appendChild(f);
+    current = { url: url.trim(), info: info };
+    data.last = url.trim();
+    persist();
+    btn.classList.add("live");
+    say(info.kind === "spotify"
+      ? "Playing. Spotify may play only short previews unless you are logged in to Spotify in this browser."
+      : "Playing. Some videos cannot be played outside YouTube. If you see an error, try another link.");
+  }
+
+  function stop() {
+    player.innerHTML = "";
+    current = null;
+    btn.classList.remove("live");
+    say("Stopped.");
+  }
+
+  function renderList() {
+    list.innerHTML = "";
+    if (data.saved.length === 0) return;
+    list.appendChild(mk("div", "label", "SAVED"));
+    data.saved.forEach(function (s, i) {
+      var row = mk("div", "mu-saved");
+      var t = mk("button", "t", "▶ " + s.label);
+      t.addEventListener("click", function () { urlIn.value = s.url; play(s.url); });
+      var x = mk("button", "", "✕");
+      x.setAttribute("aria-label", "Remove");
+      x.addEventListener("click", function () { data.saved.splice(i, 1); persist(); renderList(); });
+      row.appendChild(t); row.appendChild(x);
+      list.appendChild(row);
+    });
+  }
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (panel.classList.contains("away")) open(); else hide();
+  });
+  panel.addEventListener("click", function (e) { e.stopPropagation(); });
+  document.addEventListener("click", function () { if (!panel.classList.contains("away")) hide(); });
+  panel.querySelector("#mu-hide").addEventListener("click", hide);
+  panel.querySelector("#mu-stop").addEventListener("click", stop);
+  panel.querySelector("#mu-play").addEventListener("click", function () { play(urlIn.value); });
+  urlIn.addEventListener("keydown", function (e) { if (e.key === "Enter") play(urlIn.value); });
+  panel.querySelector("#mu-save").addEventListener("click", function () {
+    var raw = urlIn.value.trim();
+    var info = parse(raw);
+    if (!info) { say("Paste a YouTube or Spotify link first."); return; }
+    if (data.saved.some(function (s) { return s.url === raw; })) { say("Already saved."); return; }
+    var name = prompt("Name this (for example: Lo-fi study, Afrobeats chill):", info.label);
+    if (name === null) return;
+    data.saved.unshift({ label: (name.trim() || info.label).slice(0, 40), url: raw });
+    data.saved = data.saved.slice(0, 20);
+    persist();
+    renderList();
+    say("Saved.");
+  });
+
+  urlIn.value = data.last;
+  renderList();
+  // dictation or the keyboard should not be hidden behind the panel on small screens
+  window.addEventListener("pagehide", function () { player.innerHTML = ""; });
+})();
